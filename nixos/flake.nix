@@ -3,9 +3,8 @@
 # Exposes the ghelper + gpu-helper packages and a NixOS module.
 #
 # Quick start:
-#   1. Build ghelper:  cd .. && ./build.sh
-#   2. Test package:   nix build .#ghelper
-#   3. In your flake:
+#   1. Test package:   nix build .#ghelper   (builds from source, no build.sh needed)
+#   2. In your flake:
 #        inputs.ghelper.url = "path:./nixos";  # or github:utajum/g-helper-linux?dir=nixos
 #        nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
 #          modules = [
@@ -26,6 +25,8 @@
   in {
     packages.${system} = {
       ghelper = packages.ghelper;
+      ghelper-audio = packages.ghelper-audio;
+      wlr-randr = packages.wlr-randr;
       gpu-helper = packages.gpu-helper;
       gpu-block-helper = packages.gpu-block-helper;
       ghelper-gpu-boot = packages.ghelper-gpu-boot;
