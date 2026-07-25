@@ -17,8 +17,8 @@ let
   # Udev rules from install/90-ghelper.rules with /bin/chmod
   # replaced by the Nix store coreutils path (NixOS has no /bin/chmod).
   udevRulesText = builtins.replaceStrings
-    [ "/bin/chmod" ]
-    [ "${pkgs.coreutils}/bin/chmod" ]
+    [ "/bin/chmod" "/bin/sh" "VERSION_PLACEHOLDER" ]
+    [ "${pkgs.coreutils}/bin/chmod" "${pkgs.runtimeShell}" packages.ghelper.version ]
     (builtins.readFile ../install/90-ghelper.rules);
 
   udevRules = pkgs.writeTextFile {

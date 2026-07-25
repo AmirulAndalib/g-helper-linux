@@ -1,13 +1,20 @@
 # G-Helper Linux package for NixOS.
 #
-# Wraps the prebuilt AOT binary with nix-ld library resolution so
-# runtime-extracted native libs (SkiaSharp, HarfBuzz, etc.) work.
-# Builds gpu-helper from vendored C source as a proper Nix binary.
+# Builds ghelper from source as a Native AOT binary via buildDotnetModule.
+# The C helpers the app embeds (ghelper-audio, wlr-randr, gpu-helper) are
+# their own packages below; ghelper's preBuild copies the built binaries
+# into the paths the csproj's EmbedNativeLibraries target expects.
 {
   lib,
   stdenv,
-  makeWrapper,
-  autoPatchelfHook,
+  buildDotnetModule,
+  dotnetCorePackages,
+  # Build deps for ghelper (Native AOT link)
+  clang,
+  # ghelper-audio build deps
+  pkg-config,
+  # wlr-randr build deps
+  wayland-scanner,
   # Runtime deps for ghelper (Avalonia/SkiaSharp/ICU/.NET AOT)
   fontconfig,
   freetype,
@@ -33,89 +40,100 @@
   libICE,
   libSM,
   # gpu-helper build deps
-  glibc,
   pciutils,
 }:
 
-let
-  # Runtime library closure for ghelper + its extracted native helpers.
-  # NIX_LD_LIBRARY_PATH makes these visible to runtime-extracted .so files
-  # that can't be patchelf'd (they don't exist until the app unpacks them).
-  runtimeLibs = lib.makeLibraryPath [
-    fontconfig
-    freetype
-    icu
-    openssl
-    zlib
-    libGL
-    libX11
-    libXcursor
-    libXi
-    libXrandr
-    libxkbcommon
-    wayland
-    dbus
-    glib
-    expat
-    pipewire
-    libxcb
-    libxext
-    libxinerama
-    libxfixes
-    libxrender
-    libICE
-    libSM
-    stdenv.cc.cc.lib # libstdc++
-  ];
-
-in
-{
-  # The main GUI binary, wrapped with nix-ld library paths.
-  ghelper = stdenv.mkDerivation {
+rec {
+  # The main GUI binary, built from source as a Native AOT single binary.
+  ghelper = buildDotnetModule rec {
     pname = "ghelper";
-    version = "1.0.0";
+    version = "1.0.88";
 
-    # Prebuilt AOT binary from dist/ (run build.sh first)
-    src = ../dist;
+    src = lib.cleanSource ../.;
 
-    # No autoPatchelfHook: .NET managed DLLs get corrupted by patchelf.
-    # nix-ld + LD_LIBRARY_PATH handle native lib resolution at runtime.
-    nativeBuildInputs = [ makeWrapper ];
+    projectFile = "src/GHelper.Linux.csproj";
+    nugetDeps = ./deps.json;
 
-    # .NET managed PE DLLs get corrupted by strip.
-    dontStrip = true;
-    dontPatchELF = true;
-    buildInputs = [
+    dotnet-sdk = dotnetCorePackages.sdk_10_0;
+    # AOT self-contained binary: no dotnet runtime needed.
+    dotnet-runtime = null;
+
+    runtimeId = "linux-x64";
+    selfContainedBuild = true;
+    executables = [ "ghelper" ];
+
+    runtimeDeps = [
+      fontconfig
+      freetype
+      icu
+      openssl
+      zlib
+      libGL
+      libX11
+      libXcursor
+      libXi
+      libXrandr
+      libxkbcommon
+      wayland
+      dbus
+      glib
+      expat
+      pipewire
+      libxcb
+      libxext
+      libxinerama
+      libxfixes
+      libxrender
+      libICE
+      libSM
       stdenv.cc.cc.lib # libstdc++
+    ];
+
+    nativeBuildInputs = [
+      clang # Native AOT linker
+    ];
+
+    buildInputs = [
+      stdenv.cc.cc.lib
       zlib
       icu
       openssl
       fontconfig
     ];
 
-    dontUnpack = true;
+    preBuild = ''
+      sed -i "s/VERSION_PLACEHOLDER/${version}/" install/90-ghelper.rules
 
-    installPhase = ''
-      mkdir -p $out/bin
+      mkdir -p build/embedded
+      cp ${ghelper-audio}/bin/ghelper-audio build/embedded/ghelper-audio
+      cp ${wlr-randr}/bin/wlr-randr vendor/wlr-randr/wlr-randr
+      cp ${gpu-helper}/bin/gpu-helper vendor/gpu-helper/gpu-helper
+    '';
 
-      if [ -f $src/ghelper.dll ]; then
-        # Folder build: .NET host + managed DLLs must stay together.
-        # nix-ld handles native lib resolution at runtime.
-        mkdir -p $out/lib/ghelper
-        cp -r $src/* $out/lib/ghelper/
-        chmod +x $out/lib/ghelper/ghelper
+    postInstall = ''
+      rm -f $out/lib/ghelper/ghelper.dbg
 
-        makeWrapper $out/lib/ghelper/ghelper $out/bin/ghelper \
-          --prefix NIX_LD_LIBRARY_PATH : "${runtimeLibs}:/run/opengl-driver/lib" \
-          --prefix LD_LIBRARY_PATH : "${runtimeLibs}:/run/opengl-driver/lib"
-      else
-        # AOT single-binary (may be UPX-compressed)
-        install -m755 $src/ghelper $out/bin/ghelper
-
-        wrapProgram $out/bin/ghelper \
-          --prefix NIX_LD_LIBRARY_PATH : "${runtimeLibs}:/run/opengl-driver/lib" \
-          --prefix LD_LIBRARY_PATH : "${runtimeLibs}:/run/opengl-driver/lib"
-      fi
+      # Native SkiaSharp/HarfBuzzSharp libraries from the restored NuGet
+      # packages. Unlike build.sh (which embeds them into the single
+      # portable binary), on Nix they are placed next to the binary in the
+      # store: NativeLibExtractor's exe-dir lookup loads them from there
+      # and their own deps come from the wrapper's LD_LIBRARY_PATH.
+      # Restored packages live in NUGET_PACKAGES and/or the read-only
+      # NUGET_FALLBACK_PACKAGES.
+      for lib_spec in \
+          "libSkiaSharp.so:skiasharp.nativeassets.linux" \
+          "libHarfBuzzSharp.so:harfbuzzsharp.nativeassets.linux"; do
+        lib_name="''${lib_spec%%:*}"
+        pkg_name="''${lib_spec##*:}"
+        so_path=$(find -L "$NUGET_PACKAGES" "$NUGET_FALLBACK_PACKAGES" \
+                  -path "*/$pkg_name/*/runtimes/linux-x64/native/$lib_name" \
+                  -print -quit 2>/dev/null)
+        if [ -z "$so_path" ]; then
+          echo "ERROR: $lib_name not found in restored NuGet packages" >&2
+          exit 1
+        fi
+        install -m755 "$so_path" "$out/lib/ghelper/$lib_name"
+      done
 
       # Desktop entry + icon (Exec=ghelper, resolved on PATH by the module).
       install -Dm644 ${../install/ghelper.desktop} \
@@ -129,6 +147,64 @@ in
       license = lib.licenses.gpl3;
       platforms = [ "x86_64-linux" ];
       mainProgram = "ghelper";
+    };
+  };
+
+  # PipeWire audio helper (noise suppression + DSP chain) with vendored
+  # rnnoise. Embedded into the ghelper binary, extracted at runtime by
+  # NativeLibExtractor. Build mirrors audio-helper/Makefile.
+  ghelper-audio = stdenv.mkDerivation {
+    pname = "ghelper-audio";
+    version = "1.0.0";
+
+    src = ../audio-helper;
+
+    nativeBuildInputs = [ pkg-config ];
+    buildInputs = [ pipewire ];
+
+    # Default make-based buildPhase (Makefile builds and strips ghelper-audio).
+
+    installPhase = ''
+      install -Dm755 ghelper-audio $out/bin/ghelper-audio
+    '';
+
+    meta = {
+      description = "G-Helper PipeWire audio helper with rnnoise DSP";
+      license = lib.licenses.gpl3;
+      platforms = [ "x86_64-linux" ];
+    };
+  };
+
+  # Wayland display tool (vendored, MIT license), used for refresh
+  # rate switching. Embedded into the ghelper binary. Build mirrors build.sh.
+  wlr-randr = stdenv.mkDerivation {
+    pname = "ghelper-wlr-randr";
+    version = lib.strings.trim (builtins.readFile ../vendor/wlr-randr/VERSION);
+
+    src = ../vendor/wlr-randr;
+
+    nativeBuildInputs = [ wayland-scanner ];
+    buildInputs = [ wayland ];
+
+    buildPhase = ''
+      wayland-scanner client-header \
+          protocol/wlr-output-management-unstable-v1.xml \
+          wlr-output-management-unstable-v1-client-protocol.h
+      wayland-scanner private-code \
+          protocol/wlr-output-management-unstable-v1.xml \
+          wlr-output-management-unstable-v1-protocol.c
+      cc -O2 -o wlr-randr main.c wlr-output-management-unstable-v1-protocol.c \
+          -I. -lwayland-client -lm
+    '';
+
+    installPhase = ''
+      install -Dm755 wlr-randr $out/bin/wlr-randr
+    '';
+
+    meta = {
+      description = "G-Helper vendored wlr-randr Wayland display tool";
+      license = lib.licenses.mit;
+      platforms = [ "x86_64-linux" ];
     };
   };
 
@@ -157,8 +233,7 @@ in
     '';
 
     installPhase = ''
-      mkdir -p $out/bin
-      install -m755 gpu-helper $out/bin/gpu-helper
+      install -Dm755 gpu-helper $out/bin/gpu-helper
     '';
 
     meta = {
@@ -178,8 +253,7 @@ in
     dontUnpack = true;
 
     installPhase = ''
-      mkdir -p $out/bin
-      install -m755 $src $out/bin/gpu-block-helper.sh
+      install -Dm755 $src $out/bin/gpu-block-helper.sh
     '';
 
     meta = {
@@ -200,8 +274,7 @@ in
     dontUnpack = true;
 
     installPhase = ''
-      mkdir -p $out/bin
-      install -m755 $src $out/bin/ghelper-gpu-boot.sh
+      install -Dm755 $src $out/bin/ghelper-gpu-boot.sh
     '';
 
     meta = {
