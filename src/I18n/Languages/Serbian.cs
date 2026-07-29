@@ -68,6 +68,7 @@ public static class Serbian
         ["color_primary"] = "Примарна боја",
         ["color_secondary"] = "Секундарна боја",
         ["pick_color"] = "Изабери боју",
+        ["aura_random_color"] = "Насумично",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Serbian
         ["action_miniled"] = "Укључи/Искључи MiniLED",
         ["action_camera"] = "Укључи/Искључи камеру",
         ["action_touchpad"] = "Укључи/Искључи тачпед",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 тастер",
@@ -876,6 +887,7 @@ public static class Serbian
         ["sysfiles_diff_close"] = "Затвори",
         ["sysfiles_remove"] = "Уклони",
         ["sysfiles_name_gpu_helper"] = "Привилеговани GPU помоћник",
+        ["sysfiles_name_ryzenadj"] = "Алатка за подешавање AMD напајања (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Скрипта за блокирање GPU-а",
         ["sysfiles_name_gpu_boot_script"] = "Скрипта за покретање GPU-а",
         ["sysfiles_name_gpu_boot_service"] = "Услуга за покретање GPU-а (systemd)",

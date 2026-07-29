@@ -97,6 +97,8 @@ public static class PeripheralsProvider
         DetectMouse(new Mouse.Models.StrixImpact());
         DetectMouse(new Mouse.Models.TXGamingMini());
         DetectMouse(new Mouse.Models.TXGamingMiniWired());
+        DetectMouse(new Mouse.Models.TUFGamingMiniMiku());
+        DetectMouse(new Mouse.Models.TUFGamingMiniMikuWired());
         DetectMouse(new Mouse.Models.Pugio());
         DetectMouse(new Mouse.Models.MD200());
     }

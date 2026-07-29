@@ -51,11 +51,12 @@ public static class XGM
     ///   <item>0x1970 - first-gen RTX 3070/3080 dock (Flow X13 GV301QE
     ///                  reference dock, this is what reporter of #86 has).</item>
     ///   <item>0x1A9A - second-gen RTX 4070/4080/4090 dock.</item>
+    ///   <item>0x1C28 - sibling id of 0x1C29 on newer dock firmware.</item>
     ///   <item>0x1C29 - newer dock revision (Strix XG receptacle).</item>
     ///   <item>0x1BC1 - latest dock revision shipped with 2024+ Flow Z13.</item>
     /// </list>
     /// </summary>
-    public static readonly int[] XGM_PIDS = { 0x1970, 0x1A9A, 0x1C29, 0x1BC1 };
+    public static readonly int[] XGM_PIDS = { 0x1970, 0x1A9A, 0x1C28, 0x1C29, 0x1BC1 };
 
     /// <summary>
     /// Whether an XG Mobile dock is currently visible on USB-HID. Independent
@@ -152,6 +153,9 @@ public static class XGM
         var auth = Encoding.ASCII.GetBytes("^ASUS Tech.Inc.");
         Helpers.Logger.WriteLine("XGM: sending init handshake (^ASUS Tech.Inc.)");
         bool ok = Write(auth, "XGM:Init");
+
+        // 0xE6 follows the handshake; some docks ignore LED state without it.
+        Write(new byte[] { 0xE6 }, "XGM:Init:E6");
 
         // Match Windows: restore the LED on/off state immediately after the
         // handshake. Brightness is restored separately by InitLight() at

@@ -65,6 +65,7 @@ public static class German
         ["color_primary"] = "Primärfarbe",
         ["color_secondary"] = "Sekundärfarbe",
         ["pick_color"] = "Farbe wählen",
+        ["aura_random_color"] = "Zufällig",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class German
         ["action_miniled"] = "MiniLED umschalten",
         ["action_camera"] = "Kamera umschalten",
         ["action_touchpad"] = "Touchpad umschalten",
+        ["mkey_bindings_header"] = "M-Tasten",
+        ["mkey_default"] = "Standard",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 Taste",
@@ -873,6 +884,7 @@ public static class German
         ["sysfiles_diff_close"] = "Schließen",
         ["sysfiles_remove"] = "Entfernen",
         ["sysfiles_name_gpu_helper"] = "Privilegierter GPU-Helfer",
+        ["sysfiles_name_ryzenadj"] = "AMD-Leistungs-Tuning-Tool (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU-Block-Hilfsskript",
         ["sysfiles_name_gpu_boot_script"] = "GPU-Boot-Skript",
         ["sysfiles_name_gpu_boot_service"] = "GPU-Boot-Dienst (systemd)",

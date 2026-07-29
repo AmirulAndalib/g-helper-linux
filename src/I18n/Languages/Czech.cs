@@ -65,6 +65,7 @@ public static class Czech
         ["color_primary"] = "Hlavní barva",
         ["color_secondary"] = "Vedlejší barva",
         ["pick_color"] = "Vybrat barvu",
+        ["aura_random_color"] = "Náhodná",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Czech
         ["action_miniled"] = "Přepnout MiniLED",
         ["action_camera"] = "Přepnout kameru",
         ["action_touchpad"] = "Přepnout touchpad",
+        ["mkey_bindings_header"] = "Klávesy M",
+        ["mkey_default"] = "Výchozí",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Klávesa ROG / M5",
@@ -873,6 +884,7 @@ public static class Czech
         ["sysfiles_diff_close"] = "Zavřít",
         ["sysfiles_remove"] = "Odebrat",
         ["sysfiles_name_gpu_helper"] = "Privilegovaný pomocník GPU",
+        ["sysfiles_name_ryzenadj"] = "Nástroj ladění napájení AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Pomocný skript blokování GPU",
         ["sysfiles_name_gpu_boot_script"] = "Spouštěcí skript GPU",
         ["sysfiles_name_gpu_boot_service"] = "Spouštěcí služba GPU (systemd)",

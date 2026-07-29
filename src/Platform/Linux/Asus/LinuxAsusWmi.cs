@@ -1177,13 +1177,14 @@ public class LinuxAsusWmi : IHardwareControl
 
     private int GetGpuTemp()
     {
-        // Skip every NVIDIA read while the dGPU is runtime-suspended: probing it
-        // (hwmon/NVML/nvidia-smi) wakes it from D3cold. Fall through to the
-        // APU/amdgpu sensor instead.
-        bool nvSuspended = Gpu.NVidia.LinuxNvidiaGpuControl.IsDgpuSuspended();
+        // Skip every NVIDIA read while the dGPU is suspended or idle with
+        // runtime PM on: probing it (hwmon/NVML/nvidia-smi) wakes it or keeps
+        // resetting its autosuspend timer. Fall through to the APU/amdgpu
+        // sensor instead.
+        bool nvSkip = Gpu.NVidia.LinuxNvidiaGpuControl.ShouldSkipDgpuTelemetry();
 
         // Try NVIDIA hwmon (cached lookup, no repeated filesystem scan)
-        var nvidiaHwmon = nvSuspended ? null : SysfsHelper.FindHwmonByName("nvidia");
+        var nvidiaHwmon = nvSkip ? null : SysfsHelper.FindHwmonByName("nvidia");
         if (nvidiaHwmon != null)
         {
             int temp = SysfsHelper.ReadInt(Path.Combine(nvidiaHwmon, "temp1_input"), -1);
@@ -1206,7 +1207,7 @@ public class LinuxAsusWmi : IHardwareControl
             return nvmlTemp;
 
         // Last resort: nvidia-smi fork (~200ms)
-        if (!nvSuspended && Directory.Exists("/sys/module/nvidia"))
+        if (!nvSkip && Directory.Exists("/sys/module/nvidia"))
         {
             try
             {

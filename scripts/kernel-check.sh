@@ -139,20 +139,53 @@ extract_signals() {
 # True if a sysfs attribute name appears anywhere in the port's src/.
 in_port() { grep -rqiF "$1" "$SRC_DIR" 2>/dev/null; }
 
-# Print a set; for sysfs-name sets also tag [in port] / [CANDIDATE].
+# Resolve ASUS_WMI_DEVID_<NAME> to its hex value from the kernel header.
+devid_value() {
+    git -C "$KERNEL_DIR" show "$TIP:include/linux/platform_data/x86/asus-wmi.h" 2>/dev/null \
+        | sed -nE "s/^#define[[:space:]]+$1[[:space:]]+(0x[0-9a-fA-F]+).*/\1/p" | head -1
+}
+
+# Resolve ASUS_WMI_DEVID_<NAME> to the asus-armoury sysfs attribute that fronts
+# it, via the `{ &<name>_attr_group, ASUS_WMI_DEVID_<NAME> }` table.
+devid_sysfs_name() {
+    [[ -f "$TMP/devid_map" ]] || git -C "$KERNEL_DIR" show "$TIP:drivers/platform/x86/asus-armoury.c" 2>/dev/null \
+        | grep -oE '\{ &[a-z0-9_]+_attr_group, ASUS_WMI_DEVID_[A-Z0-9_]+' \
+        | sed -E 's/\{ &//; s/_attr_group,[[:space:]]*/ /' > "$TMP/devid_map" || true
+    awk -v d="$1" '$2 == d { print $1; exit }' "$TMP/devid_map" 2>/dev/null
+}
+
+# The port reaches most of these knobs by sysfs attribute name, and the rest by
+# the raw hex passed to the WMI shim - it never spells the kernel's symbolic
+# name. Checking only the name reports everything as missing, so try all three.
+# Still over-reports knobs the kernel fronts as /sys/class/leds entries
+# (lightbar, micmute, tuf rgb): those have no firmware-attributes group.
+in_port_devid() {
+    in_port "$1" && return 0
+    local sysfs; sysfs="$(devid_sysfs_name "$1")"
+    [[ -n "$sysfs" ]] && in_port "$sysfs" && return 0
+    local hex; hex="$(devid_value "$1")"
+    [[ -z "$hex" ]] && return 1
+    in_port "$hex" && return 0
+    in_port "0x$(printf '%x' "$hex")"
+}
+
+# Print a set; xref tags each entry [in port] / [candidate].
+# xref      - match the literal name in src/
+# xref-devid - resolve ASUS_WMI_DEVID_* to hex first
 print_set() {
     local file="$1" label="$2" xref="${3:-}"
     [[ -s "$file" ]] || return 0
     echo -e "  ${BOLD}${label}:${NC}"
-    local name tag
+    local name tag hit
     while IFS= read -r name; do
         [[ -z "$name" ]] && continue
-        if [[ "$xref" == "xref" ]]; then
-            if in_port "$name"; then tag="${DIM}[in port]${NC}"; else tag="${YELLOW}[NOT IN PORT -> candidate]${NC}"; fi
-            echo -e "    ${name}  ${tag}"
-        else
-            echo -e "    ${DIM}${name}${NC}"
-        fi
+        case "$xref" in
+            xref)       if in_port "$name"; then hit=0; else hit=1; fi ;;
+            xref-devid) if in_port_devid "$name"; then hit=0; else hit=1; fi ;;
+            *)          echo -e "    ${DIM}${name}${NC}"; continue ;;
+        esac
+        if [[ $hit -eq 0 ]]; then tag="${DIM}[in port]${NC}"; else tag="${YELLOW}[NOT IN PORT -> candidate]${NC}"; fi
+        echo -e "    ${name}  ${tag}"
     done < "$file"
 }
 
@@ -160,7 +193,7 @@ report_signals() {
     echo -e "${GREEN}${BOLD}ASUS knobs${NC}"
     print_set "$TMP/asus_attr"     "asus-armoury firmware-attributes (sysfs names)" xref
     print_set "$TMP/asus_attr_var" "asus-armoury attribute groups (vars: ppt_*/nv_* etc.)" xref
-    print_set "$TMP/asus_devid"    "ASUS_WMI device IDs"
+    print_set "$TMP/asus_devid"    "ASUS_WMI device IDs" xref-devid
     echo ""
     echo -e "${GREEN}${BOLD}Lenovo knobs${NC}"
     print_set "$TMP/len_tun"   "wmi-other firmware-attribute tunables" xref

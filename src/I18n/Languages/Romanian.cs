@@ -65,6 +65,7 @@ public static class Romanian
         ["color_primary"] = "Culoare principală",
         ["color_secondary"] = "Culoare secundară",
         ["pick_color"] = "Alege culoare",
+        ["aura_random_color"] = "Aleatoriu",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Romanian
         ["action_miniled"] = "Comută MiniLED",
         ["action_camera"] = "Comută camera",
         ["action_touchpad"] = "Comută touchpad",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Tasta ROG / M5",
@@ -873,6 +884,7 @@ public static class Romanian
         ["sysfiles_diff_close"] = "Închide",
         ["sysfiles_remove"] = "Elimină",
         ["sysfiles_name_gpu_helper"] = "Asistent GPU privilegiat",
+        ["sysfiles_name_ryzenadj"] = "Instrument de reglare a alimentării AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Script asistent de blocare GPU",
         ["sysfiles_name_gpu_boot_script"] = "Script de pornire GPU",
         ["sysfiles_name_gpu_boot_service"] = "Serviciu de pornire GPU (systemd)",

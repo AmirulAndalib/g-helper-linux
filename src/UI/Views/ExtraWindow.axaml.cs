@@ -45,6 +45,7 @@ public partial class ExtraWindow : Window
             InitAppearance();
             InitKeyboardBacklight();
             InitKeyBindings();
+            InitMKeyBindings();
             RefreshDisplay();
             RefreshGpuBackend();
             RefreshOther();
@@ -350,11 +351,9 @@ public partial class ExtraWindow : Window
         // Settings-form retry: if the AURA probe didn't run / didn't succeed
         // earlier (e.g. hidraw races at startup, transient permission glitch),
         // re-run Init() now so power-zone visibility + mode list reflect the
-        // hardware. skip_aura honors a user override for fully RGB-disabled
-        // setups.
-        if (!Aura.IsBacklightDetected
-            && !Helpers.AppConfig.Is("skip_aura")
-            && Aura.IsAvailable())
+        // hardware. Not gated on skip_aura: that flag suppresses applying
+        // lighting, not detecting what the hardware has.
+        if (!Aura.IsBacklightDetected && Aura.IsAvailable())
         {
             try
             { Aura.Init(); }
@@ -798,6 +797,94 @@ public partial class ExtraWindow : Window
 
         Helpers.AppConfig.Set(bindingName, actionId);
         Helpers.Logger.WriteLine($"Key binding: {bindingName} → {actionId}");
+    }
+
+    // M-KEY FIRMWARE BINDINGS
+
+    // Slot config key -> its combo + row. Only slots the firmware reports are shown.
+    private readonly Dictionary<ComboBox, string> _mKeyCombos = new();
+
+    private void InitMKeyBindings()
+    {
+        headerMKeys.Text = Labels.Get("mkey_bindings_header");
+        labelMKeyReset.Text = Labels.Get("reset");
+
+        // Probe is one HID round-trip; do it off the UI thread, then populate.
+        Task.Run(() =>
+        {
+            bool supported = Input.MKeyControl.IsSupported();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (!supported)
+                {
+                    panelMKeys.IsVisible = false;
+                    return;
+                }
+                panelMKeys.IsVisible = true;
+
+                WireMKeyRow(comboMKeyM1, rowMKeyM1, "m1");
+                WireMKeyRow(comboMKeyM2, rowMKeyM2, "m2");
+                WireMKeyRow(comboMKeyM3, rowMKeyM3, "m3");
+                WireMKeyRow(comboMKeyM5, rowMKeyM5, "m5");
+            });
+        });
+    }
+
+    private void WireMKeyRow(ComboBox combo, Grid row, string slot)
+    {
+        bool has = Input.MKeyControl.HasSlot(slot);
+        row.IsVisible = has;
+        if (!has)
+            return;
+
+        _mKeyCombos[combo] = slot;
+        combo.Items.Clear();
+
+        string current = Helpers.AppConfig.GetString(slot) ?? "";
+        int idx = 0, sel = 0;
+        foreach (var (id, label) in Input.MKeyControl.OpcodeChoices())
+        {
+            combo.Items.Add(new ComboBoxItem { Content = label, Tag = id });
+            if (id == current)
+                sel = idx;
+            idx++;
+        }
+
+        bool prev = _suppressEvents;
+        _suppressEvents = true;
+        combo.SelectedIndex = sel;
+        _suppressEvents = prev;
+    }
+
+    private void ComboMKey_Changed(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressEvents)
+            return;
+        if (sender is not ComboBox combo)
+            return;
+        if (!_mKeyCombos.TryGetValue(combo, out string? slot))
+            return;
+        if (combo.SelectedItem is not ComboBoxItem item || item.Tag is not string actionId)
+            return;
+
+        Helpers.AppConfig.Set(slot, actionId);
+        Helpers.Logger.WriteLine($"MKey binding: {slot} -> {actionId}");
+        Task.Run(Input.MKeyControl.ApplyAll);
+    }
+
+    private void ButtonMKeyReset_Click(object? sender, RoutedEventArgs e)
+    {
+        foreach (var slot in new[] { "m1", "m2", "m3", "m5" })
+            Helpers.AppConfig.Set(slot, "");
+
+        Task.Run(Input.MKeyControl.Reset);
+
+        // Reflect defaults in the combos.
+        bool prev = _suppressEvents;
+        _suppressEvents = true;
+        foreach (var (combo, _) in _mKeyCombos)
+            combo.SelectedIndex = 0;
+        _suppressEvents = prev;
     }
 
     // DISPLAY

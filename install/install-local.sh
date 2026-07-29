@@ -283,7 +283,7 @@ if [[ -f /etc/NIXOS ]]; then
     _info "Staging module + binary under ${GH_NIX_ROOT}/"
     rm -rf "$GH_NIX_ROOT"
     mkdir -p "$GH_NIX_ROOT/nixos" "$GH_NIX_ROOT/dist" \
-             "$GH_NIX_ROOT/vendor/gpu-helper/ryzen" "$GH_NIX_ROOT/install"
+             "$GH_NIX_ROOT/vendor/gpu-helper" "$GH_NIX_ROOT/install"
     install -m644 "$PROJECT_DIR/nixos/module.nix"  "$GH_NIX_ROOT/nixos/module.nix"
     install -m644 "$PROJECT_DIR/nixos/package.nix" "$GH_NIX_ROOT/nixos/package.nix"
     install -m755 "$DIST_DIR/ghelper"              "$GH_NIX_ROOT/dist/ghelper"
@@ -292,10 +292,9 @@ if [[ -f /etc/NIXOS ]]; then
         cp -r "$DIST_DIR/." "$GH_NIX_ROOT/dist/"
     fi
     # Full gpu-helper source tree; package.nix compiles all of it.
+    # (ryzenadj is a nixpkgs package pulled in by module.nix, not built here.)
     install -m644 "$PROJECT_DIR"/vendor/gpu-helper/*.c "$PROJECT_DIR"/vendor/gpu-helper/*.h \
         "$GH_NIX_ROOT/vendor/gpu-helper/"
-    install -m644 "$PROJECT_DIR"/vendor/gpu-helper/ryzen/*.c "$PROJECT_DIR"/vendor/gpu-helper/ryzen/*.h \
-        "$GH_NIX_ROOT/vendor/gpu-helper/ryzen/"
     for f in 90-ghelper.rules gpu-block-helper.sh ghelper-gpu-boot.sh ghelper.desktop ghelper.png; do
         install -m644 "$SCRIPT_DIR/$f" "$GH_NIX_ROOT/install/$f"
     done
@@ -378,7 +377,8 @@ if [[ "$MODE" == "uninstall" ]]; then
     _safe_remove "/etc/modules-load.d/ghelper-lenovo.conf"    "modules-load config (legacy)"
     _safe_remove "/etc/systemd/system/ghelper-gpu-boot.service" "GPU boot systemd unit"
     _safe_remove "/usr/local/lib/ghelper"                 "ghelper lib directory"
-    _safe_remove "/etc/sudoers.d/ghelper-gpu"             "sudoers rule"
+    _safe_remove "/etc/sudoers.d/zz-ghelper-gpu"          "sudoers rule"
+    _safe_remove "/etc/sudoers.d/ghelper-gpu"             "sudoers rule (legacy)"
     _safe_remove "/etc/modprobe.d/ghelper-gpu-block.conf"    "dGPU block (modprobe)"
     _safe_remove "/etc/udev/rules.d/50-ghelper-remove-dgpu.rules" "dGPU block (udev)"
     _safe_remove "/etc/ghelper"                           "ghelper config dir"
@@ -503,7 +503,8 @@ _step 3 "GPU BLOCK HELPER + BOOT SERVICE + SUDOERS RULE"
 
 HELPER_DIR="/usr/local/lib/ghelper"
 HELPER_DEST="$HELPER_DIR/gpu-block-helper.sh"
-SUDOERS_DEST="/etc/sudoers.d/ghelper-gpu"
+SUDOERS_DEST="/etc/sudoers.d/zz-ghelper-gpu"
+SUDOERS_LEGACY="/etc/sudoers.d/ghelper-gpu"
 
 mkdir -p "$HELPER_DIR"
 _install_file "$SCRIPT_DIR/gpu-block-helper.sh" "$HELPER_DEST" 755 "GPU block helper" || true
@@ -517,23 +518,52 @@ if [[ "$MODE" == "install" ]]; then
     else
         _warn "GPU helper extraction failed (GPU switching / holder detection unavailable)"
     fi
+
+    # ryzenadj (upstream RyzenAdj CLI, embedded in ghelper): SMU power/temp
+    # tuning. Only useful on AMD Ryzen APUs - skipped elsewhere.
+    if grep -q "AuthenticAMD" /proc/cpuinfo && grep -qiE "Ryzen|Custom APU" /proc/cpuinfo; then
+        RYZENADJ_DEST="$INSTALL_DIR/ryzenadj"
+        if "$INSTALL_DIR/ghelper" --extract-helper ryzenadj "$RYZENADJ_DEST" >/dev/null 2>&1; then
+            chown root:root "$RYZENADJ_DEST"
+            chmod 755 "$RYZENADJ_DEST"
+            _inject "ryzenadj (AMD SMU tuning) → $RYZENADJ_DEST"
+        else
+            _warn "ryzenadj extraction failed (AMD power tuning unavailable)"
+        fi
+    else
+        _skip "ryzenadj → no AMD Ryzen CPU detected, skipping"
+    fi
 fi
 
-# sudoers rule — every privileged GPU operation goes through the two root-owned
+# ryzenadj sudoers line applies when the CPU matches AND the binary is
+# present (presence check so appimage mode keeps an existing grant).
+RYZENADJ_APPLIES=0
+if grep -q "AuthenticAMD" /proc/cpuinfo && grep -qiE "Ryzen|Custom APU" /proc/cpuinfo \
+   && [[ -x "$INSTALL_DIR/ryzenadj" ]]; then
+    RYZENADJ_APPLIES=1
+fi
+
+# sudoers rule — every privileged GPU operation goes through the root-owned
 # helper binaries (gpu-helper validates each subcommand against an internal
 # whitelist, so this is no broader than per-command rules).
 SUDOERS_CONTENT="# G-Helper: passwordless access to the root-owned helper binaries
 ALL ALL=(root) NOPASSWD: $HELPER_DEST
 ALL ALL=(root) NOPASSWD: /opt/ghelper/gpu-helper"
+if [[ "$RYZENADJ_APPLIES" == "1" ]]; then
+    SUDOERS_CONTENT="$SUDOERS_CONTENT
+ALL ALL=(root) NOPASSWD: /opt/ghelper/ryzenadj"
+fi
 
 if [[ -f "$SUDOERS_DEST" ]] && echo "$SUDOERS_CONTENT" | cmp -s - "$SUDOERS_DEST"; then
     _skip "sudoers rule → already deployed at $SUDOERS_DEST"
+    rm -f "$SUDOERS_LEGACY"  # legacy name, lost to wheel rule
 else
     echo "$SUDOERS_CONTENT" > "$SUDOERS_DEST"
     chmod 0440 "$SUDOERS_DEST"
     # Validate — if visudo rejects it, remove immediately
     if visudo -c -f "$SUDOERS_DEST" &>/dev/null; then
         _inject "sudoers rule → $SUDOERS_DEST"
+        rm -f "$SUDOERS_LEGACY"
     else
         rm -f "$SUDOERS_DEST"
         _fail "sudoers rule — syntax error, removed (GPU block will use pkexec fallback)"

@@ -68,6 +68,7 @@ public static class Indonesian
         ["color_primary"] = "Warna utama",
         ["color_secondary"] = "Warna sekunder",
         ["pick_color"] = "Pilih Warna",
+        ["aura_random_color"] = "Acak",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Indonesian
         ["action_miniled"] = "Alihkan MiniLED",
         ["action_camera"] = "Alihkan Kamera",
         ["action_touchpad"] = "Alihkan Touchpad",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Tombol ROG / M5",
@@ -876,6 +887,7 @@ public static class Indonesian
         ["sysfiles_diff_close"] = "Tutup",
         ["sysfiles_remove"] = "Hapus",
         ["sysfiles_name_gpu_helper"] = "Pembantu GPU istimewa",
+        ["sysfiles_name_ryzenadj"] = "Alat penyetelan daya AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Skrip pembantu pemblokiran GPU",
         ["sysfiles_name_gpu_boot_script"] = "Skrip boot GPU",
         ["sysfiles_name_gpu_boot_service"] = "Layanan boot GPU (systemd)",

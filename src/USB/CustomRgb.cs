@@ -201,7 +201,10 @@ public static class CustomRgb
             zones[z * 3 + 2] = c.B;
         }
 
+        // Init handshake can swallow the first frame on Strix; send the
+        // frame again so the static paint always lands
         Aura.ApplyDirectZones(zones, true);
+        Aura.ApplyDirectZones(zones);
     }
 
     /// <summary>

@@ -1715,15 +1715,39 @@ public partial class FansWindow : Window
                 continue;
             anyVisible = true;
 
-            // Seed from PM table if available, else use slider default.
-            if (info != null && info.TryGetValue(s.Param, out float raw))
-            {
-                float display = raw / s.Divisor;
-                s.Slider.Value = Math.Clamp(display, s.Slider.Minimum, s.Slider.Maximum);
-            }
+            // Seed priority (Ryzen Controller model): user's saved value,
+            // else the live -i table limit, else the upstream default.
+            float display;
+            int? saved = Platform.Linux.RyzenPower.SavedValue(s.Param);
+            if (saved != null)
+                display = saved.Value;
+            else if (info != null && info.TryGetValue(s.Param, out float limit))
+                display = limit;
+            else if (Platform.Linux.RyzenPower.Defaults.TryGetValue(s.Param, out float def))
+                display = def;
+            else
+                display = (float)s.Slider.Value;
+            display = Platform.Linux.RyzenPower.Clamp(s.Param, display);
+            s.Slider.Value = Math.Clamp(display, s.Slider.Minimum, s.Slider.Maximum);
             UpdateRyzenLabel(s);
         }
 
+        panelRyzenPower.IsVisible = anyVisible;
+    }
+
+    /// <summary>Hide rows dropped as unsupported during apply. Slider values
+    /// are left alone so the user's edits never visually revert.</summary>
+    private void RefreshRyzenRowVisibility()
+    {
+        if (_ryzenSliders == null)
+            return;
+        bool anyVisible = false;
+        foreach (var s in _ryzenSliders)
+        {
+            bool supported = Platform.Linux.RyzenPower.IsSupported(s.Param);
+            s.Row.IsVisible = supported;
+            anyVisible |= supported;
+        }
         panelRyzenPower.IsVisible = anyVisible;
     }
 
@@ -1746,13 +1770,31 @@ public partial class FansWindow : Window
     {
         if (_ryzenSliders == null)
             return;
+        // One batched ryzenadj invocation (Ryzen Controller / UXTU model).
+        // Values are clamped to the upstream bounds and persisted so they
+        // re-apply at app start.
+        var batch = new List<(string Param, int Raw)>();
+        var display = new List<(string Param, int Value)>();
         foreach (var s in _ryzenSliders)
         {
             if (!s.Row.IsVisible)
                 continue;
-            int raw = (int)(s.Slider.Value * s.Divisor);
-            Platform.Linux.RyzenPower.Set(s.Param, raw);
+            int val = (int)Platform.Linux.RyzenPower.Clamp(s.Param, (float)s.Slider.Value);
+            display.Add((s.Param, val));
+            batch.Add((s.Param, (int)(val * s.Divisor)));
         }
+        if (batch.Count == 0)
+            return;
+        bool ok = Platform.Linux.RyzenPower.Apply(batch);
+        Platform.Linux.RyzenPower.Invalidate();
+        if (ok)
+        {
+            foreach (var (param, val) in display)
+                if (Platform.Linux.RyzenPower.IsSupported(param))
+                    Platform.Linux.RyzenPower.SaveValue(param, val);
+        }
+        // Rows dropped as unsupported disappear; slider values stay put.
+        RefreshRyzenRowVisibility();
     }
 
     // Ryzen Curve Optimizer undervolt (mirrors Windows Fans.cs: trackUV / checkApplyUV)
@@ -2159,6 +2201,8 @@ public partial class FansWindow : Window
                     WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.PptPlatformSppt);
                 }
                 App.Power?.SetCpuBoost(true);
+                // AMD SMU panel: forget saved values, restore boot limits
+                Platform.Linux.RyzenPower.ResetToStock();
             }
             catch (Exception ex)
             {
@@ -2168,6 +2212,7 @@ public partial class FansWindow : Window
             {
                 LoadPowerLimits();
                 RefreshBoostButton();
+                LoadRyzenPower();
                 buttonCpuReset.IsEnabled = true;
             });
         });

@@ -68,6 +68,7 @@ public static class ChineseTraditional
         ["color_primary"] = "主色",
         ["color_secondary"] = "輔色",
         ["pick_color"] = "選擇顏色",
+        ["aura_random_color"] = "隨機",
         ["hex_label"] = "Hex：",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class ChineseTraditional
         ["action_miniled"] = "MiniLED 切換",
         ["action_camera"] = "攝影機切換",
         ["action_touchpad"] = "觸控板切換",
+        ["mkey_bindings_header"] = "M 鍵",
+        ["mkey_default"] = "預設",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 鍵",
@@ -876,6 +887,7 @@ public static class ChineseTraditional
         ["sysfiles_diff_close"] = "關閉",
         ["sysfiles_remove"] = "移除",
         ["sysfiles_name_gpu_helper"] = "GPU 特權協助程式",
+        ["sysfiles_name_ryzenadj"] = "AMD 電源調校工具 (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU 封鎖協助指令稿",
         ["sysfiles_name_gpu_boot_script"] = "GPU 開機指令稿",
         ["sysfiles_name_gpu_boot_service"] = "GPU 開機服務 (systemd)",

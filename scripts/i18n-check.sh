@@ -55,7 +55,9 @@ fi
 #     dropdown population time.
 #   - "sysfiles_name_": Install/Installer.cs stores each managed file's display
 #     key as a ManagedFile.NameKey literal, resolved via Labels.Get(f.NameKey).
-INDIRECT_PREFIXES=("sysinfo_" "bind_" "btn_" "ally_grp_" "controller_mode_" "sysfiles_name_")
+#   - "mkey_": Input/MKeyControl.cs stores firmware-opcode label keys as string
+#     literals in its Choices table, resolved via Labels.Get(key) in OpcodeChoices.
+INDIRECT_PREFIXES=("sysinfo_" "bind_" "btn_" "ally_grp_" "controller_mode_" "sysfiles_name_" "mkey_")
 
 # ----- argument parsing -----
 

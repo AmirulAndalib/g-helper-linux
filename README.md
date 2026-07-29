@@ -401,6 +401,7 @@ g-helper-linux/
 - [Avalonia UI](https://avaloniaui.net/)
 - [asus-wmi kernel driver](https://github.com/torvalds/linux/tree/master/drivers/platform/x86)
 - [ryzen_smu](https://github.com/amkillam/ryzen_smu) by Leonardo Gates / amkillam
+- [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) by FlyGoat (bundled CLI binary for AMD SMU power tuning)
 
 ---
 

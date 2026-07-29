@@ -70,7 +70,7 @@ jobs:
           dotnet-version: '10.0'
 
       - name: Install Native AOT dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev libwayland-dev upx-ucl libpipewire-0.3-dev libpci-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev libwayland-dev upx-ucl libpipewire-0.3-dev pkg-config
 
       - name: Restore packages
         run: dotnet restore src/ --runtime linux-x64
@@ -88,6 +88,7 @@ jobs:
           # MSBuild Condition cache poisoning, etc).
           EXPECTED=(
             gpu-helper
+            ryzenadj
             gpu-block-helper.sh
             ghelper-gpu-boot.sh
             90-ghelper.rules
@@ -110,11 +111,13 @@ jobs:
             fi
             echo "  ok: $res ($size bytes)"
           done
-          # gpu-helper must be a valid ELF executable (not a zero-byte placeholder).
-          if ! file /tmp/smoke-gpu-helper | grep -q "ELF.*executable"; then
-            echo "ERROR: gpu-helper is not a valid ELF executable"
-            exit 1
-          fi
+          # Helper binaries must be valid ELF executables (not placeholders).
+          for bin in gpu-helper ryzenadj; do
+            if ! file "/tmp/smoke-${bin}" | grep -q "ELF.*executable"; then
+              echo "ERROR: ${bin} is not a valid ELF executable"
+              exit 1
+            fi
+          done
           echo "All embedded resources verified"
 
       - name: Upload binary artifact

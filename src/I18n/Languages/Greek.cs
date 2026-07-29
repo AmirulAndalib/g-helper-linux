@@ -68,6 +68,7 @@ public static class Greek
         ["color_primary"] = "Κύριο χρώμα",
         ["color_secondary"] = "Δευτερεύον χρώμα",
         ["pick_color"] = "Επιλογή χρώματος",
+        ["aura_random_color"] = "Τυχαίο",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Greek
         ["action_miniled"] = "Εναλλαγή MiniLED",
         ["action_camera"] = "Εναλλαγή κάμερας",
         ["action_touchpad"] = "Εναλλαγή επιφάνειας αφής",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Πλήκτρο ROG / M5",
@@ -876,6 +887,7 @@ public static class Greek
         ["sysfiles_diff_close"] = "Κλείσιμο",
         ["sysfiles_remove"] = "Κατάργηση",
         ["sysfiles_name_gpu_helper"] = "Προνομιούχος βοηθός GPU",
+        ["sysfiles_name_ryzenadj"] = "Εργαλείο ρύθμισης ισχύος AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Σενάριο βοηθού αποκλεισμού GPU",
         ["sysfiles_name_gpu_boot_script"] = "Σενάριο εκκίνησης GPU",
         ["sysfiles_name_gpu_boot_service"] = "Υπηρεσία εκκίνησης GPU (systemd)",

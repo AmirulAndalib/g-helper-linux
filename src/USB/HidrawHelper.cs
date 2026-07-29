@@ -361,6 +361,13 @@ public static class HidrawHelper
     /// </summary>
     public static bool WriteAll(byte reportId, List<byte[]> messages, string? log = null)
     {
+        // Serialize with all other ASUS HID traffic (upstream #5784)
+        lock (AsusHid.HidLock)
+            return WriteAllLocked(reportId, messages, log);
+    }
+
+    private static bool WriteAllLocked(byte reportId, List<byte[]> messages, string? log)
+    {
         var paths = GetAuraDevicePaths().ToList();
         if (paths.Count == 0)
             return false;
@@ -429,6 +436,13 @@ public static class HidrawHelper
     /// </summary>
     public static byte[]? QueryAuraCapabilities(byte queryLastByte = 0x20)
     {
+        // Two-step SetFeature+GetFeature; keep atomic vs other HID traffic
+        lock (AsusHid.HidLock)
+            return QueryAuraCapabilitiesLocked(queryLastByte);
+    }
+
+    private static byte[]? QueryAuraCapabilitiesLocked(byte queryLastByte)
+    {
         var path = GetAuraDevicePaths().FirstOrDefault();
         if (path == null)
         {
@@ -487,6 +501,78 @@ public static class HidrawHelper
             if (fd >= 0)
                 close(fd);
         }
+    }
+
+    /// <summary>
+    /// Probe M-key firmware binding slots. Sends the query
+    /// <c>[AURA_ID, 0x9F, 0x02, 0x00]</c> via SetFeature then polls GetFeature
+    /// for a reply whose bytes [1][2] echo 0x9F 0x02; byte [4] is the slot
+    /// count and bytes [5..5+count] are the per-slot default EC opcodes.
+    /// Returns the defaults array, or null if unsupported. Port of the probe
+    /// half of upstream MKeyControl (#5691). Works on both USB and I2C AURA
+    /// nodes since Linux hidraw is bus-agnostic.
+    /// </summary>
+    public static byte[]? MKeyProbe()
+    {
+        lock (AsusHid.HidLock)
+            return MKeyProbeLocked();
+    }
+
+    private static byte[]? MKeyProbeLocked()
+    {
+        var path = GetAuraDevicePaths().FirstOrDefault();
+        if (path == null)
+            return null;
+
+        int fd = -1;
+        try
+        {
+            fd = open(path, O_RDWR);
+            if (fd < 0)
+            {
+                Helpers.Logger.WriteLine($"MKey probe: cannot open {path}: errno={Marshal.GetLastPInvokeError()}");
+                return null;
+            }
+
+            byte[] query = new byte[64];
+            query[0] = AsusHid.AURA_ID;
+            query[1] = 0x9F;
+            query[2] = 0x02;
+            query[3] = 0x00;
+            if (ioctl(fd, HIDIOCSFEATURE(64), query) < 0)
+            {
+                Helpers.Logger.WriteLine($"MKey probe: SetFeature failed on {path}: errno={Marshal.GetLastPInvokeError()}");
+                return null;
+            }
+
+            for (int i = 0; i < 10; i++)
+            {
+                Thread.Sleep(20);
+                byte[] response = new byte[64];
+                response[0] = AsusHid.AURA_ID;
+                if (ioctl(fd, HIDIOCGFEATURE(64), response) < 0)
+                    continue;
+
+                if (response[1] != 0x9F || response[2] != 0x02)
+                    continue;
+                int count = response[4];
+                if (count < 1 || count > 8 || 5 + count > 64)
+                    continue;
+
+                Helpers.Logger.WriteLine($"MKey bindings: {BitConverter.ToString(response, 0, 16)}");
+                return response[5..(5 + count)];
+            }
+        }
+        catch (Exception ex)
+        {
+            Helpers.Logger.WriteLine($"MKey probe error: {ex.Message}");
+        }
+        finally
+        {
+            if (fd >= 0)
+                close(fd);
+        }
+        return null;
     }
 
     public static void DisableBacklightOobe()
@@ -695,7 +781,7 @@ public static class HidrawHelper
     /// <summary>
     /// Write multiple messages to every ASUS hidraw device whose product ID
     /// matches one of <paramref name="pids"/>. Used by the XG Mobile
-    /// transport (PID set: 0x1970 / 0x1A9A / 0x1C29 / 0x1BC1) which uses a
+    /// transport (PID set: see <c>XGM.XGM_PIDS</c>) which uses a
     /// 300-byte feature report on report id 0x5E. The <paramref name="reportSize"/>
     /// parameter lets callers pick the correct padding (default 64 = AURA).
     /// </summary>
@@ -705,6 +791,18 @@ public static class HidrawHelper
         int[] pids,
         int reportSize = 64,
         string? log = null)
+    {
+        // Serialize with all other ASUS HID traffic (upstream #5784)
+        lock (AsusHid.HidLock)
+            return WriteAllForPidsLocked(reportId, messages, pids, reportSize, log);
+    }
+
+    private static bool WriteAllForPidsLocked(
+        byte reportId,
+        IEnumerable<byte[]> messages,
+        int[] pids,
+        int reportSize,
+        string? log)
     {
         var pidSet = new HashSet<int>(pids);
         var paths = EnumerateAsusDevices()

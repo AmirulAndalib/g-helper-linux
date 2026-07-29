@@ -150,14 +150,10 @@ if command -v cc &>/dev/null; then
     (
         cd "$GPU_HELPER_DIR"
         HELPER_SRCS="process_ops.c nvidia_ops.c pci_ops.c \
-                     wmi_ops.c msr_ops.c lenovo_ops.c ryzen_ops.c"
-        RYZEN_SRCS="ryzen/api.c ryzen/cpuid.c ryzen/nb_smu_ops.c \
-                    ryzen/osdep_linux.c ryzen/osdep_linux_mem.c \
-                    ryzen/osdep_linux_smu_kernel_module.c"
-        cc -O2 -Wall -Wno-unused-result \
-           -D_LIBRYZENADJ_INTERNAL -DNDEBUG -I ryzen \
-           -o gpu-helper gpu-helper.c $HELPER_SRCS $RYZEN_SRCS \
-           -ldl -lpci
+                     wmi_ops.c msr_ops.c lenovo_ops.c"
+        cc -O2 -Wall -Wno-unused-result -DNDEBUG \
+           -o gpu-helper gpu-helper.c $HELPER_SRCS \
+           -ldl
         strip gpu-helper
     )
     if [[ -f "$GPU_HELPER_DIR/gpu-helper" ]]; then
@@ -165,7 +161,7 @@ if command -v cc &>/dev/null; then
         echo "  gpu-helper built: $(du -sh "$GPU_HELPER_BIN" | cut -f1)"
     else
         echo "ERROR: gpu-helper build failed (privileged GPU operations unavailable)"
-        echo "  Check: 'cc' is installed and libpci-dev is present (apt: libpci-dev)"
+        echo "  Check: 'cc' is installed"
         exit 1
     fi
 else

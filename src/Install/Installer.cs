@@ -148,6 +148,11 @@ public static partial class Installer
     // Legacy modules-load.d path superseded by the unified ghelper.conf
     private const string LegacyModulesLoadPath = "/etc/modules-load.d/ghelper-lenovo.conf";
 
+    // Legacy sudoers path. sudoers.d is read in lexical order and the LAST
+    // matching rule wins; "ghelper-gpu" sorted before SteamOS's "wheel"
+    // (%wheel ALL=(ALL) ALL), which silently re-required a password.
+    private const string LegacySudoersPath = "/etc/sudoers.d/ghelper-gpu";
+
     private const string BootService = "ghelper-gpu-boot.service";
     private const string HicolorDir = "/usr/share/icons/hicolor";
     private const string NvidiaVulkanIcd = "/usr/share/vulkan/icd.d/nvidia_icd.json";
@@ -174,6 +179,17 @@ public static partial class Installer
                 Id = "gpu_helper", NameKey = "sysfiles_name_gpu_helper",
                 Resource = "gpu-helper", Dest = GpuHelperDest,
                 Mode = M755, RootRequired = true, RootOwned = true,
+            },
+            new ManagedFile
+            {
+                // Upstream RyzenAdj CLI (static build, vendored from GitHub
+                // releases). SMU power/temp/current tuning on AMD Ryzen APUs;
+                // NotApplicable elsewhere so non-Ryzen machines never see it
+                // in the install/update prompts.
+                Id = "ryzenadj", NameKey = "sysfiles_name_ryzenadj",
+                Resource = "ryzenadj", Dest = RyzenadjDest,
+                Mode = M755, RootRequired = true, RootOwned = true,
+                AppliesWhen = RyzenApplies,
             },
             new ManagedFile
             {
@@ -218,9 +234,11 @@ public static partial class Installer
             },
             new ManagedFile
             {
+                // "zz-" prefix: must sort after distro group rules (e.g.
+                // SteamOS "wheel") or their PASSWD grant overrides ours.
                 Id = "sudoers", NameKey = "sysfiles_name_sudoers",
                 Generate = SudoersContent,
-                Dest = "/etc/sudoers.d/ghelper-gpu",
+                Dest = "/etc/sudoers.d/zz-ghelper-gpu",
                 Mode = M440, RootRequired = true, RootOwned = true,
                 Post = [PostVisudo],
             },
@@ -376,6 +394,13 @@ public static partial class Installer
     /// SteamOS relocates it to the writable /etc overlay.</summary>
     internal static string GpuHelperDest => SysfsHelper.DefaultGpuHelperInstallPath;
 
+    internal static string RyzenadjDest => SysfsHelper.DefaultRyzenadjInstallPath;
+
+    /// <summary>ryzenadj is only useful on AMD Ryzen APUs; on other CPUs the
+    /// binary and its sudoers line are NotApplicable (never advertised in the
+    /// startup prompt or the Updates integrity panel).</summary>
+    private static bool RyzenApplies() => Platform.Linux.RyzenPower.IsRyzenCpu;
+
     /// <summary>
     /// sudoers rule matching install-local.sh's (echo adds the trailing
     /// newline). References the root-owned helpers that are also managed
@@ -392,6 +417,8 @@ public static partial class Installer
         if (BootGpuApplies())
             sb.Append("ALL ALL=(root) NOPASSWD: /usr/local/lib/ghelper/gpu-block-helper.sh\n");
         sb.Append($"ALL ALL=(root) NOPASSWD: {GpuHelperDest}\n");
+        if (RyzenApplies())
+            sb.Append($"ALL ALL=(root) NOPASSWD: {RyzenadjDest}\n");
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
 
@@ -430,7 +457,11 @@ public static partial class Installer
         // read (or even reliably stat'd) as a normal user. Verify it
         // functionally instead by inspecting the effective sudo policy.
         if (f.Id == "sudoers")
+        {
+            if (!File.Exists(f.Dest) && File.Exists(LegacySudoersPath))
+                return FileState.Outdated;
             return ProbeSudoers();
+        }
 
         // Autostart is owned by the app's own autostart toggle (AppConfig +
         // SetAutostart). If the user turned autostart off, the file's absence
@@ -454,6 +485,9 @@ public static partial class Installer
 
         if (!File.Exists(f.Dest))
             return FileState.Missing;
+
+        if (f.RootOwned && !IsRootOwned(f.Dest))
+            return FileState.WrongPerms;
 
         byte[] disk;
         try
@@ -510,6 +544,13 @@ public static partial class Installer
                 return Platform.Linux.NixOS.ResolveGpuBlockHelper() != null
                     ? FileState.Ok : FileState.Missing;
 
+            case "ryzenadj":
+                // nixpkgs package, added to PATH by the module.
+                if (!f.Applies())
+                    return FileState.NotApplicable;
+                return Platform.Linux.NixOS.ResolveRyzenadj() != null
+                    ? FileState.Ok : FileState.Missing;
+
             case "udev_rules":
                 // Module ships these via services.udev.packages (symlink into
                 // /etc/udev/rules.d from the read-only store).
@@ -562,6 +603,7 @@ public static partial class Installer
     {
         "gpu_helper" => Platform.Linux.NixOS.ResolveGpuHelper() ?? f.Dest,
         "gpu_block_helper" => Platform.Linux.NixOS.ResolveGpuBlockHelper() ?? f.Dest,
+        "ryzenadj" => Platform.Linux.NixOS.ResolveRyzenadj() ?? f.Dest,
         "desktop" => Platform.Linux.NixOS.DesktopFilePath() ?? f.Dest,
         "icon" => Platform.Linux.NixOS.IconFilePath() ?? f.Dest,
         "udev_rules" => f.Dest,   // real (store symlink into /etc)
@@ -584,9 +626,10 @@ public static partial class Installer
     /// Why not <c>sudo -n -l &lt;cmd&gt;</c>: that exits 0 whenever the user may
     /// run the command by ANY rule (e.g. a blanket <c>(ALL) ALL</c> that
     /// sudo-group members get), so it cannot tell whether OUR NOPASSWD rule is in
-    /// effect. Parsing the listing for the NOPASSWD annotation on the exact paths
-    /// is immune to the blanket rule and to cached credentials - the listing
-    /// reflects policy, not what the user happens to be allowed to run right now.
+    /// effect. Instead the listing is parsed with last-match-wins semantics
+    /// (see <see cref="HasNopasswd"/>), which also detects a later blanket
+    /// PASSWD rule overriding our grant. Immune to cached credentials - the
+    /// listing reflects policy, not what the user can run right now.
     ///
     /// <c>-n</c> never prompts. Returns:
     ///   - <see cref="FileState.Ok"/> when both paths are listed NOPASSWD,
@@ -640,6 +683,7 @@ public static partial class Installer
 
         string gpuHelperPath = GpuHelperDest;
         string blockHelperPath = "/usr/local/lib/ghelper/gpu-block-helper.sh";
+        string ryzenadjPath = RyzenadjDest;
 
         // NixOS: the sudoers rule references the nix store paths. The resolvers
         // already return the store path (symlink followed), which is what the
@@ -648,13 +692,16 @@ public static partial class Installer
         {
             gpuHelperPath = Platform.Linux.NixOS.ResolveGpuHelper() ?? gpuHelperPath;
             blockHelperPath = Platform.Linux.NixOS.ResolveGpuBlockHelper() ?? blockHelperPath;
+            ryzenadjPath = Platform.Linux.NixOS.ResolveRyzenadj() ?? ryzenadjPath;
         }
 
         bool gpuHelper = HasNopasswd(listing, gpuHelperPath);
         // The block helper only matters where the GPU boot integration
-        // applies; its sudoers line is not emitted elsewhere.
+        // applies; its sudoers line is not emitted elsewhere. Same for
+        // ryzenadj on non-Ryzen CPUs.
         bool blockHelper = !BootGpuApplies() || HasNopasswd(listing, blockHelperPath);
-        return gpuHelper && blockHelper ? FileState.Ok : FileState.Missing;
+        bool ryzenadj = !RyzenApplies() || HasNopasswd(listing, ryzenadjPath);
+        return gpuHelper && blockHelper && ryzenadj ? FileState.Ok : FileState.Missing;
     }
 
     /// <summary>True if the sudo policy listing grants passwordless access to
@@ -662,11 +709,60 @@ public static partial class Installer
     /// (sudo prints one rule per line, possibly with several commands).</summary>
     private static bool HasNopasswd(string listing, string path)
     {
-        foreach (var line in listing.Split('\n'))
-            if (line.Contains("NOPASSWD", StringComparison.Ordinal)
-                && line.Contains(path, StringComparison.Ordinal))
+        bool granted = false;
+        foreach (var raw in listing.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (!line.StartsWith('('))
+                continue; // headers / Defaults lines
+            if (line.Contains(path, StringComparison.Ordinal) || IsBlanketAll(line))
+                granted = line.Contains("NOPASSWD", StringComparison.Ordinal);
+        }
+        return granted;
+    }
+
+    /// <summary>Rule whose command spec is ALL, e.g. "(ALL) ALL" or
+    /// "(ALL : ALL) NOPASSWD: ALL" - matches every command incl. ours.</summary>
+    private static bool IsBlanketAll(string line)
+    {
+        int close = line.IndexOf(')');
+        if (close < 0)
+            return false;
+        string cmds = line[(close + 1)..];
+        foreach (var tag in new[] { "NOPASSWD:", "PASSWD:", "SETENV:", "NOSETENV:", "EXEC:", "NOEXEC:" })
+            cmds = cmds.Replace(tag, "");
+        return cmds.Trim() == "ALL";
+    }
+
+    /// <summary>uid==0 check via stat(1); .NET exposes no owner API. Errors
+    /// return true so a missing stat never flags a false repair.</summary>
+    private static bool IsRootOwned(string path)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "stat",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add("-c");
+            psi.ArgumentList.Add("%u");
+            psi.ArgumentList.Add(path);
+            using var p = Process.Start(psi);
+            if (p == null)
                 return true;
-        return false;
+            string owner = p.StandardOutput.ReadToEnd().Trim();
+            if (!p.WaitForExit(3000) || p.ExitCode != 0)
+                return true;
+            return owner == "0";
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private static byte[]? ExpectedBytes(ManagedFile f)
@@ -1077,6 +1173,7 @@ public static partial class Installer
 
         // Clean up legacy modules-load.d file superseded by ghelper.conf
         TryDelete(LegacyModulesLoadPath);
+        TryDelete(LegacySudoersPath);
 
         RestoreVulkanIcd();
         RunRemovePostActions(post);
@@ -1161,6 +1258,9 @@ public static partial class Installer
 
         // Clean up legacy modules-load.d file superseded by ghelper.conf
         TryDelete(LegacyModulesLoadPath);
+        // Superseded by zz-ghelper-gpu (sorts after distro wheel rule)
+        if (File.Exists(Manifest.First(f => f.Id == "sudoers").Dest))
+            TryDelete(LegacySudoersPath);
         // PostVisudo is validated inline in WriteRoot.
     }
 

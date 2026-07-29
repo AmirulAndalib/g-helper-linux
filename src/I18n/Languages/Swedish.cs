@@ -68,6 +68,7 @@ public static class Swedish
         ["color_primary"] = "Primärfärg",
         ["color_secondary"] = "Sekundärfärg",
         ["pick_color"] = "Välj färg",
+        ["aura_random_color"] = "Slumpmässig",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Swedish
         ["action_miniled"] = "Växla MiniLED",
         ["action_camera"] = "Växla kamera",
         ["action_touchpad"] = "Växla pekplatta",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5-tangent",
@@ -876,6 +887,7 @@ public static class Swedish
         ["sysfiles_diff_close"] = "Stäng",
         ["sysfiles_remove"] = "Ta bort",
         ["sysfiles_name_gpu_helper"] = "Privilegierad GPU-hjälpare",
+        ["sysfiles_name_ryzenadj"] = "AMD-strömjusteringsverktyg (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU-blockeringshjälpskript",
         ["sysfiles_name_gpu_boot_script"] = "GPU-startskript",
         ["sysfiles_name_gpu_boot_service"] = "GPU-starttjänst (systemd)",

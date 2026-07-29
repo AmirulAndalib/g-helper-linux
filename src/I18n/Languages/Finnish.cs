@@ -68,6 +68,7 @@ public static class Finnish
         ["color_primary"] = "Pääväri",
         ["color_secondary"] = "Toissijainen väri",
         ["pick_color"] = "Valitse väri",
+        ["aura_random_color"] = "Satunnainen",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Finnish
         ["action_miniled"] = "Vaihda MiniLED",
         ["action_camera"] = "Vaihda kamera",
         ["action_touchpad"] = "Vaihda kosketuslevy",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 -näppäin",
@@ -876,6 +887,7 @@ public static class Finnish
         ["sysfiles_diff_close"] = "Sulje",
         ["sysfiles_remove"] = "Poista",
         ["sysfiles_name_gpu_helper"] = "Etuoikeutettu GPU-apuohjelma",
+        ["sysfiles_name_ryzenadj"] = "AMD-virranviritystyökalu (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU-eston apuskripti",
         ["sysfiles_name_gpu_boot_script"] = "GPU-käynnistysskripti",
         ["sysfiles_name_gpu_boot_service"] = "GPU-käynnistyspalvelu (systemd)",

@@ -33,3 +33,20 @@ public class TXGamingMiniWired : TXGamingMini
     public TXGamingMiniWired() : base(0x1AF3, "mi_00", false) { }
     public override string GetDisplayName() => "TX Gaming Mini (Wired)";
 }
+
+public class TUFGamingMiniMiku : TXGamingMini
+{
+    public TUFGamingMiniMiku() : this(0x1C57, true) { }
+    protected TUFGamingMiniMiku(ushort pid, bool wireless) : base(pid, "mi_00", wireless) { }
+
+    public override string GetDisplayName() => "TUF GAMING Mini Miku Edition (Wireless)";
+
+    public override LightingZone[] SupportedLightingZones() =>
+        [LightingZone.Logo, LightingZone.Scrollwheel, LightingZone.Underglow];
+}
+
+public class TUFGamingMiniMikuWired : TUFGamingMiniMiku
+{
+    public TUFGamingMiniMikuWired() : base(0x1C56, false) { }
+    public override string GetDisplayName() => "TUF GAMING Mini Miku Edition (Wired)";
+}

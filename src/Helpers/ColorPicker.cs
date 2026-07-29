@@ -31,7 +31,7 @@ public static class ColorPicker
     /// window close).
     /// </summary>
     public static void Show(Window owner, byte initR, byte initG, byte initB,
-        Action<byte, byte, byte> onColorSet)
+        Action<byte, byte, byte> onColorSet, bool allowRandom = false)
     {
         var pickerWindow = new Window
         {
@@ -178,6 +178,25 @@ public static class ColorPicker
         stack.Children.Add(labelB);
         stack.Children.Add(sliderB);
         stack.Children.Add(btnOk);
+
+        // Black = firmware-random color in Star/Highlight/Laser/Ripple)
+        if (allowRandom)
+        {
+            var btnRandom = new Button
+            {
+                Content = Labels.Get("aura_random_color"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Avalonia.Thickness(0, 8, 0, 0),
+                MinWidth = 120,
+                MinHeight = 30,
+            };
+            btnRandom.Click += (_, _) =>
+            {
+                onColorSet(0, 0, 0);
+                pickerWindow.Close();
+            };
+            stack.Children.Add(btnRandom);
+        }
 
         pickerWindow.Content = stack;
         pickerWindow.ShowDialog(owner);

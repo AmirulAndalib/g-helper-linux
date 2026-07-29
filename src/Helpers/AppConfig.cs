@@ -539,6 +539,10 @@ public static class AppConfig
     public static bool IsOnlyAIMAX() => ContainsModel("FA401EA") || ContainsModel("HN7306EA");
     public static bool IsAdvantageEdition() => ContainsModel("13QY");
 
+    /// <summary>Lid logo LED present but not reported by the AURA feat1 probe.
+    /// Covers Z13 and Advantage Edition (G513QY / G713QY).</summary>
+    public static bool IsLidLogo() => IsZ13() || IsAdvantageEdition();
+
     // GPU / power management
     /// <summary>
     /// Models where firmware forgets dgpu_disable across reboots, requiring the
@@ -562,8 +566,8 @@ public static class AppConfig
 
     // Dynamic boost
     public static bool DynamicBoost5() => ContainsModel("GZ301ZE");
-    public static bool DynamicBoost15() => ContainsModel("FX507ZC4") || ContainsModel("GA403UM") || ContainsModel("GU605CP") || ContainsModel("FX608J") || ContainsModel("FX608L") || ContainsModel("FA608U") || ContainsModel("FA608P") || ContainsModel("FA401K") || ContainsModel("FA401UM") || ContainsModel("FA401UH");
-    public static bool DynamicBoost20() => ContainsModel("GU605") || ContainsModel("GA605");
+    public static bool DynamicBoost15() => ContainsModel("FX507ZC4") || ContainsModel("GA403UM") || ContainsModel("GU605CP") || ContainsModel("FX608J") || ContainsModel("FX608L") || ContainsModel("FA608U") || ContainsModel("FA608P") || ContainsModel("FA401K") || ContainsModel("FA401UM") || ContainsModel("FA401UH") || ContainsModel("GA403GM") || ContainsModel("GU405AM") || ContainsModel("GU405AP") || ContainsModel("GU606AM") || ContainsModel("GU606AP");
+    public static bool DynamicBoost20() => ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("GU405");
 
     // Performance mode
     public static bool IsAlwaysUltimate() => ContainsModel("FA507NUR") || ContainsModel("FA506NCR") || ContainsModel("FA507NVR");
@@ -587,13 +591,19 @@ public static class AppConfig
         ContainsModel("G531") || ContainsModel("G731") || ContainsModel("G532") || ContainsModel("G732") || ContainsModel("G533") || ContainsModel("G733");
 
     // Fan control
-    public static bool IsFanRequired() => ContainsModel("GA402X") || ContainsModel("GU604") || ContainsModel("G513") || ContainsModel("G713R") || ContainsModel("G713P") || ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("G634J") || ContainsModel("G834J") || ContainsModel("G614J") || ContainsModel("G814J") || ContainsModel("FX507V") || ContainsModel("FX507ZV") || ContainsModel("FX608") || ContainsModel("FA608P") || ContainsModel("G614F") || ContainsModel("G614P") || ContainsModel("G614R") || ContainsModel("G733") || ContainsModel("H7606");
+    public static bool IsFanRequired() => ContainsModel("GA402X") || ContainsModel("GU604") || ContainsModel("G513") || ContainsModel("G713R") || ContainsModel("G713P") || ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("G634J") || ContainsModel("G834J") || ContainsModel("G614J") || ContainsModel("G814J") || ContainsModel("FX507V") || ContainsModel("FX507Z") || ContainsModel("FX608") || ContainsModel("FA608P") || ContainsModel("G614F") || ContainsModel("G614P") || ContainsModel("G614R") || ContainsModel("G733") || ContainsModel("H7606");
     public static bool IsClampFanDots() => IsNotFalse("fan_clamp");
 
     // RGB / AURA
     public static bool IsWhite() => ContainsModel("GA401") || ContainsModel("FX517Z") || ContainsModel("FX516P") || ContainsModel("X13") || IsARCNM() || ContainsModel("FA617N") || ContainsModel("FA617X") || NoAura() || Is("no_rgb");
     public static bool NoAura() => (ContainsModel("GA401I") && !ContainsModel("GA401IHR")) || ContainsModel("GA502IU") || ContainsModel("HN7306") || ContainsModel("M6500X");
     public static bool IsBacklightZones() => IsStrix() || IsZ13();
+
+    // 2024+ models whose lightbar/keyboard use HID LampArray for direct RGB
+    public static bool IsLampArray() =>
+        ContainsModel("G614") || ContainsModel("G615") || ContainsModel("G634") || ContainsModel("G635") ||
+        ContainsModel("G814") || ContainsModel("G815") || ContainsModel("G834") || ContainsModel("G835") ||
+        IsSlash();
     /// <summary>True for chassis whose lightbar is wired L→R instead of R→L
     /// (G513 family). Selects the alternate 4-zone packet map in Aura.cs.</summary>
     public static bool IsStrix4ZoneFlipped() => ContainsModel("G513");
@@ -707,13 +717,13 @@ public static class AppConfig
         ContainsModel("M540") || ContainsModel("K340") || ContainsModel("K350") || ContainsModel("M140") ||
         ContainsModel("S540") || ContainsModel("S550") || ContainsModel("M7400") || ContainsModel("N650") ||
         ContainsModel("HN7306") || ContainsModel("H760") || ContainsModel("UX5406") || ContainsModel("M5606") ||
-        ContainsModel("X513") || ContainsModel("N7400") || ContainsModel("UX760") || ContainsModel("Q530VJ");
+        ContainsModel("X513") || ContainsModel("N7400") || ContainsModel("UX760") || ContainsModel("Q530VJ") ||
+        ContainsModel("TP3407");
     public static bool IsNoOverdrive() => Is("no_overdrive");
     public static bool SwappedBrightness() => ContainsModel("FA506IEB") || ContainsModel("FA506IH") || ContainsModel("FA506IC") || ContainsModel("FA506II") || ContainsModel("FX506LU") || ContainsModel("FX506IC") || ContainsModel("FX506LH") || ContainsModel("FA506IV") || ContainsModel("FA706IC") || ContainsModel("FA706IH");
     public static bool IsForceMiniled() =>
         ContainsModel("G834JYR") || ContainsModel("G834JZR") || ContainsModel("G634JZR") ||
-        ContainsModel("G835LW") || ContainsModel("G835LX") || ContainsModel("G635LW") ||
-        ContainsModel("G635LX") || Is("force_miniled");
+        ContainsModel("G835L") || ContainsModel("G635L") || Is("force_miniled");
 
     // Form factor / misc
     public static bool HasTabletMode() => ContainsModel("X16") || ContainsModel("X13") || ContainsModel("Z13");
@@ -748,7 +758,7 @@ public static class AppConfig
         ContainsModel("M140") || ContainsModel("S550") || ContainsModel("K650") || ContainsModel("P540") || IsTUF();
 
     public static bool IsSleepReset() =>
-        Is("sleep_reset") || ContainsModel("GU605MI") || ContainsModel("GU605MV");
+        Is("sleep_reset") || ContainsModel("GU605MI") || ContainsModel("GU605MV") || ContainsModel("GU605CR");
 
     // Helpers
 

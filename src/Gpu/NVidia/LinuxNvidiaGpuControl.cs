@@ -58,7 +58,7 @@ public class LinuxNvidiaGpuControl : IGpuControl
             return -1;
         if (!Directory.Exists("/sys/module/nvidia"))
             return -1;
-        if (IsDgpuSuspended())
+        if (ShouldSkipDgpuTelemetry())
             return -1;
         if (!NvidiaProcessScanner.EnsureHelper())
             return -1;
@@ -397,9 +397,9 @@ public class LinuxNvidiaGpuControl : IGpuControl
             return null;
         if (_nvmlCache != null && (DateTime.UtcNow - _nvmlCacheAt) < NvmlCacheTtl)
             return _nvmlCache;
-        // Don't wake a runtime-suspended dGPU to refresh NVML info; serve the
+        // Don't wake a suspended or idle dGPU to refresh NVML info; serve the
         // last cache (applied offsets/ranges stay valid across suspend) or null.
-        if (IsDgpuSuspended())
+        if (ShouldSkipDgpuTelemetry())
             return _nvmlCache;
         if (!NvidiaProcessScanner.EnsureHelper())
             return null;
@@ -720,6 +720,12 @@ public class LinuxNvidiaGpuControl : IGpuControl
     private const int SmiFailThreshold = 2;
     private static readonly TimeSpan SmiCooldown = TimeSpan.FromSeconds(15);
 
+    // A wedged driver leaves each timed-out nvidia-smi stuck in uninterruptible
+    // sleep holding the NVML rwlock, so it can never be reaped and every later
+    // one blocks behind it. Repeating a 15s cooldown forever just grows that
+    // pile, so give up entirely once this many cooldowns pass with no success.
+    private const int SmiCooldownsBeforeHold = 4;
+
     // dGPU runtime-PM guard. A runtime-suspended (D3cold) dGPU is healthy but
     // powered down. Reading power/runtime_status is passive, but any nvidia-smi
     // or NVML query resumes it from D3cold and defeats Optimus power saving - so
@@ -760,6 +766,34 @@ public class LinuxNvidiaGpuControl : IGpuControl
             && SysfsHelper.ReadAttribute(_rtStatusPath) == "suspended";
     }
 
+    /// <summary>True when periodic telemetry must skip the dGPU: it is either
+    /// runtime-suspended, or idle with runtime PM enabled (control=auto,
+    /// usage_count=0). Polling an idle-active dGPU resets its autosuspend
+    /// timer on every query, so it never reaches D3cold (issue #157).</summary>
+    public static bool ShouldSkipDgpuTelemetry()
+    {
+        if (IsDgpuSuspended())
+            return true;
+        if (_rtStatusPath == null)
+            return false;
+        var powerDir = Path.GetDirectoryName(_rtStatusPath)!;
+        // control=on means runtime PM is off; polling cannot break anything.
+        if (SysfsHelper.ReadAttribute(Path.Combine(powerDir, "control")) != "auto")
+            return false;
+        // usage_count=0: no client holds the GPU, suspend is pending.
+        return SysfsHelper.ReadInt(Path.Combine(powerDir, "runtime_usage"), -1) == 0;
+    }
+
+    /// <summary>
+    /// Clear the nvidia-smi circuit breaker. Called when the dGPU comes back so
+    /// a stale streak from the previous session cannot trip the hold instantly.
+    /// </summary>
+    public static void ResetSmiBreaker()
+    {
+        _smiFailStreak = 0;
+        _smiCooldownUntilUtc = DateTime.MinValue;
+    }
+
     private static string? RunNvidiaSmi(string query, string format = "")
     {
         // Proactive gate: GPU mode switches pause telemetry so we never spawn
@@ -781,9 +815,18 @@ public class LinuxNvidiaGpuControl : IGpuControl
         {
             if (++_smiFailStreak >= SmiFailThreshold)
             {
-                _smiCooldownUntilUtc = DateTime.UtcNow + SmiCooldown;
-                Helpers.Logger.WriteLine(
-                    $"NVIDIA: nvidia-smi unresponsive - pausing GPU queries for {SmiCooldown.TotalSeconds:0}s");
+                int cooldowns = _smiFailStreak - SmiFailThreshold + 1;
+                if (cooldowns >= SmiCooldownsBeforeHold)
+                {
+                    GpuQueryGate.Hold("nvidia-smi wedged - dGPU not responding");
+                }
+                else
+                {
+                    _smiCooldownUntilUtc = DateTime.UtcNow + SmiCooldown;
+                    Helpers.Logger.WriteLine(
+                        $"NVIDIA: nvidia-smi unresponsive - pausing GPU queries for {SmiCooldown.TotalSeconds:0}s"
+                        + $" ({cooldowns}/{SmiCooldownsBeforeHold} before giving up)");
+                }
             }
         }
         else

@@ -78,11 +78,13 @@ in {
     # AOT binary and its runtime-extracted .so files can load.
     programs.nix-ld.enable = true;
 
-    # Packages on PATH
+    # Packages on PATH. ryzenadj comes from nixpkgs; the app resolves it
+    # from PATH on NixOS instead of the bundled /opt binary.
     environment.systemPackages = [
       packages.ghelper
       packages.gpu-helper
       packages.gpu-block-helper
+      pkgs.ryzenadj
     ];
 
     # Udev rules for sysfs node permissions (battery, backlight,
@@ -101,8 +103,9 @@ in {
       "i2c-dev"   # NumberPad LED control
     ];
 
-    # Passwordless sudo for the two helper binaries.
+    # Passwordless sudo for the helper binaries.
     # gpu-helper validates subcommands against an internal whitelist.
+    # ryzenadj only touches the AMD SMU (power/temp/current limits).
     security.sudo.extraRules = [
       {
         groups = [ "wheel" ];
@@ -113,6 +116,10 @@ in {
           }
           {
             command = "${packages.gpu-block-helper}/bin/gpu-block-helper.sh";
+            options = [ "NOPASSWD" ];
+          }
+          {
+            command = "${pkgs.ryzenadj}/bin/ryzenadj";
             options = [ "NOPASSWD" ];
           }
         ];

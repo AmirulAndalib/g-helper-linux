@@ -55,6 +55,10 @@ public static class Diagnostics
         AppendNvidia(sb);
         AppendAmdGpu(sb);
 
+        // AMD SMU tuning state (ryzenadj): family, supported params,
+        // live/saved/stock limits
+        AppendRyzenSmu(sb);
+
         // Displays: connectors, compositor, current refresh
         AppendDisplays(sb);
 
@@ -1040,6 +1044,20 @@ public static class Diagnostics
         return result;
     }
 
+    private static void AppendRyzenSmu(StringBuilder sb)
+    {
+        sb.AppendLine("--- AMD SMU (ryzenadj) ---");
+        try
+        {
+            sb.Append(Platform.Linux.RyzenPower.DebugDump());
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"  (state unavailable: {ex.Message})");
+        }
+        sb.AppendLine();
+    }
+
     // Appends a multi-line block describing a PCI device's bind state and
     // runtime power state. Used by both AppendNvidia and AppendAmdGpu so
     // the diagnostic format stays consistent.
@@ -1545,6 +1563,15 @@ public static class Diagnostics
             sb.AppendLine("  (no entries - journalctl unreadable without privilege, or helper not yet invoked)");
         else
             sb.AppendLine(helperLog);
+        sb.AppendLine();
+
+        sb.AppendLine("--- RyzenAdj Log (ryzenadj) ---");
+        var ryzenLog = Platform.Linux.SysfsHelper.RunCommand("journalctl",
+            "-t ryzenadj --no-pager -n 100");
+        if (string.IsNullOrWhiteSpace(ryzenLog))
+            sb.AppendLine("  (no entries - not a Ryzen APU, or ryzenadj not yet invoked)");
+        else
+            sb.AppendLine(ryzenLog);
         sb.AppendLine();
 
         sb.AppendLine("--- Boot Service State (/etc/ghelper/*) ---");

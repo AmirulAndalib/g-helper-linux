@@ -606,6 +606,45 @@
                 </StackPanel>
             </Border>
 
+            <!-- M-KEY FIRMWARE BINDINGS (Strix macro keys M1/M2/M3/M5).
+                 Writes an EC opcode so the physical key emits the chosen
+                 hardware function at the firmware level. Hidden unless the
+                 keyboard controller reports a remap block (MKeyControl). -->
+            <Border x:Name="panelMKeys" Classes="panel" IsVisible="False">
+                <StackPanel>
+                    <Border Classes="panel-header" Margin="0,0,0,8">
+                        <TextBlock x:Name="headerMKeys" Classes="header" Text="M-Key Bindings" />
+                    </Border>
+
+                    <Grid ColumnDefinitions="180,*" Margin="0,4" x:Name="rowMKeyM1">
+                        <TextBlock Grid.Column="0" Text="M1" Classes="label-dim" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" x:Name="comboMKeyM1" Width="220" Height="28"
+                                  SelectionChanged="ComboMKey_Changed" />
+                    </Grid>
+                    <Grid ColumnDefinitions="180,*" Margin="0,4" x:Name="rowMKeyM2">
+                        <TextBlock Grid.Column="0" Text="M2" Classes="label-dim" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" x:Name="comboMKeyM2" Width="220" Height="28"
+                                  SelectionChanged="ComboMKey_Changed" />
+                    </Grid>
+                    <Grid ColumnDefinitions="180,*" Margin="0,4" x:Name="rowMKeyM3">
+                        <TextBlock Grid.Column="0" Text="M3" Classes="label-dim" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" x:Name="comboMKeyM3" Width="220" Height="28"
+                                  SelectionChanged="ComboMKey_Changed" />
+                    </Grid>
+                    <Grid ColumnDefinitions="180,*" Margin="0,4" x:Name="rowMKeyM5">
+                        <TextBlock Grid.Column="0" Text="M5" Classes="label-dim" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" x:Name="comboMKeyM5" Width="220" Height="28"
+                                  SelectionChanged="ComboMKey_Changed" />
+                    </Grid>
+
+                    <Button x:Name="buttonMKeyReset" Classes="ghelper" Height="28"
+                            HorizontalAlignment="Left" Margin="0,8,0,0"
+                            Click="ButtonMKeyReset_Click">
+                        <TextBlock x:Name="labelMKeyReset" Text="Reset" FontSize="11" />
+                    </Button>
+                </StackPanel>
+            </Border>
+
             <!-- ROG ALLY: APU UMA buffer (visible on Ally only when the
                  asus-armoury kernel attribute is present) -->
             <Border x:Name="panelApuMem" Classes="panel" IsVisible="False">
