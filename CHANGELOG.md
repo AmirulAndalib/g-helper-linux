@@ -10,6 +10,8 @@
 
 ## v1.0.89 (2026-07-31)
 
+<img width="521" height="685" alt="screenshot" src="https://github.com/user-attachments/assets/2488c2ce-2f28-4642-81df-8f9eeebd2e1d" />
+
 ### Added
 
 - Bundled RyzenAdj CLI.
