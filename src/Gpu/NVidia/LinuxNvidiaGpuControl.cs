@@ -60,6 +60,8 @@ public class LinuxNvidiaGpuControl : IGpuControl
             return -1;
         if (ShouldSkipDgpuTelemetry())
             return -1;
+        if (!Helpers.AppConfig.IsNotFalse("dgpu_monitor"))
+            return -1;
         if (!NvidiaProcessScanner.EnsureHelper())
             return -1;
         try

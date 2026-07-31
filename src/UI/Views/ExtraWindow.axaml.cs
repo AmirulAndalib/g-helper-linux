@@ -225,6 +225,8 @@ public partial class ExtraWindow : Window
         checkXGMLights.Content = Labels.Get("xgm_extra_lights_label");
         labelXgmBrightnessLabel.Text = Labels.Get("xgm_extra_brightness_label");
         InitXgmPanel();
+        checkNvidiaPowerdBattery.Content = Labels.Get("nvidia_powerd_battery");
+        InitNvidiaPowerdBattery();
         checkSilentStart.Content = Labels.Get("start_minimized");
         checkSkipSysfilesPopup.Content = Labels.Get("sysfiles_skip_startup_label");
         checkUdevPerMachine.Content = Labels.Get("udev_per_machine_label");
@@ -246,6 +248,8 @@ public partial class ExtraWindow : Window
         checkGpuTrayIcon.Content = Labels.Get("gpu_temp_tray");
         checkDgpuTrayIcon.Content = Labels.Get("dgpu_status_tray");
         labelDgpuTrayHint.Text = Labels.Get("dgpu_status_tray_hint");
+        checkDgpuMonitor.Content = Labels.Get("dgpu_monitor");
+        labelDgpuMonitorHint.Text = Labels.Get("dgpu_monitor_hint");
         checkCpuTrayTransparent.Content = Labels.Get("tray_bg_transparent");
         checkGpuTrayTransparent.Content = Labels.Get("tray_bg_transparent");
         ToolTip.SetTip(btnCpuTrayBg, Labels.Get("tray_bg_color"));
@@ -1413,10 +1417,11 @@ public partial class ExtraWindow : Window
             int state = Platform.Linux.StatusLed.Get();
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
+                bool prev = _suppressEvents;
                 _suppressEvents = true;
                 checkStatusLed.IsVisible = state >= 0;
                 checkStatusLed.IsChecked = state > 0;
-                _suppressEvents = false;
+                _suppressEvents = prev;
             });
         });
     }
@@ -1460,10 +1465,11 @@ public partial class ExtraWindow : Window
         var options = Platform.Linux.MemSleep.GetOptions();
         var active = Platform.Linux.MemSleep.GetActive();
 
+        bool prev = _suppressEvents;
         _suppressEvents = true;
         comboDeepSleep.ItemsSource = options;
         comboDeepSleep.SelectedIndex = Math.Max(0, Array.IndexOf(options, active));
-        _suppressEvents = false;
+        _suppressEvents = prev;
     }
 
     private void ComboDeepSleep_SelectionChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
@@ -1586,10 +1592,13 @@ public partial class ExtraWindow : Window
 
         rowGpuTray.IsVisible = App.GpuModeCtrl?.GetCurrentMode() != Gpu.GpuMode.Eco;
 
-        // dGPU status dot: only where a discrete GPU exists (any mode, incl.
-        // Eco where it reports "off").
+        // dGPU status dot: only where a discrete GPU exists.
         bool hasDgpu = Gpu.GPUModeControl.HasSecondGpu();
         rowDgpuTray.IsVisible = hasDgpu;
+
+        // dGPU monitoring toggle
+        checkDgpuMonitor.IsChecked = Helpers.AppConfig.IsNotFalse("dgpu_monitor");
+        rowDgpuMonitor.IsVisible = hasDgpu;
         labelDgpuTrayHint.IsVisible = hasDgpu;
     }
 
@@ -1673,6 +1682,15 @@ public partial class ExtraWindow : Window
         Helpers.AppConfig.Set("dgpu_tray_enabled", on ? 1 : 0);
         Helpers.TraySystemMonitor.SetDgpuIconEnabled(on);
         Helpers.Logger.WriteLine($"dGPU status tray icon → {on}");
+    }
+
+    private void CheckDgpuMonitor_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents)
+            return;
+        bool on = checkDgpuMonitor.IsChecked ?? true;
+        Helpers.AppConfig.Set("dgpu_monitor", on ? 1 : 0);
+        Helpers.Logger.WriteLine($"dGPU monitoring -> {on}");
     }
 
     private void CheckGpuTrayTransparent_Changed(object? sender, RoutedEventArgs e)
@@ -2099,6 +2117,7 @@ public partial class ExtraWindow : Window
 
         var combos = new[] { comboEppSilent, comboEppBalanced, comboEppTurbo };
 
+        bool prev = _suppressEvents;
         _suppressEvents = true;
         if (!_eppInitialized)
         {
@@ -2115,7 +2134,7 @@ public partial class ExtraWindow : Window
         RefreshEppCombo(comboEppSilent, 2, current);
         RefreshEppCombo(comboEppBalanced, 0, current);
         RefreshEppCombo(comboEppTurbo, 1, current);
-        _suppressEvents = false;
+        _suppressEvents = prev;
     }
 
     private static void RefreshEppCombo(ComboBox combo, int baseMode, string fallback)
@@ -2573,10 +2592,14 @@ public partial class ExtraWindow : Window
 
     private void InitXgmPanel()
     {
-        bool present = USB.XGM.IsConnected();
+        bool present = USB.XGM.IsLightAvailable();
         panelXGM.IsVisible = present;
         if (!present)
             return;
+
+        // Brightness and mode are HID-only. On a dock reachable solely through
+        // the kernel LED class the slider would silently do nothing.
+        panelXgmBrightness.IsVisible = USB.XGM.IsConnected();
 
         bool light = Helpers.AppConfig.Get("xmg_light", 1) == 1;
         int brightness = Helpers.AppConfig.Get("xmg_brightness", 3);
@@ -2593,6 +2616,38 @@ public partial class ExtraWindow : Window
             labelXgmBrightness.Text = brightness.ToString();
         }
         finally { _suppressXgm = false; }
+    }
+
+    // nvidia-powerd on battery. Hidden entirely when the unit is not installed,
+    // so machines without the NVIDIA stack do not see a dead toggle.
+
+    private bool _suppressPowerd;
+
+    private void InitNvidiaPowerdBattery()
+    {
+        bool present = Gpu.GPUModeControl.HasNvidiaDaemonsInstalled();
+        checkNvidiaPowerdBattery.IsVisible = present;
+        if (!present)
+            return;
+
+        _suppressPowerd = true;
+        try
+        { checkNvidiaPowerdBattery.IsChecked = Helpers.AppConfig.Is("nvidia_powerd_battery"); }
+        finally { _suppressPowerd = false; }
+    }
+
+    private void CheckNvidiaPowerdBattery_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressPowerd)
+            return;
+
+        bool on = checkNvidiaPowerdBattery.IsChecked == true;
+        Helpers.AppConfig.Set("nvidia_powerd_battery", on ? 1 : 0);
+
+        // Apply against the live power source right away rather than waiting
+        // for the next AC/battery transition.
+        Task.Run(() => Gpu.GPUModeControl.ApplyNvidiaPowerdPolicy(
+            App.Power?.IsOnAcPower() ?? true));
     }
 
     private void CheckXGMLights_Changed(object? sender, RoutedEventArgs e)

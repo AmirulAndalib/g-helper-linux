@@ -551,6 +551,17 @@
                     <TextBlock x:Name="labelDgpuTrayHint" Classes="label-dim"
                                Text="Green = active, gray = suspended, hollow = off"
                                TextWrapping="Wrap" Margin="24,0,0,0" />
+
+                    <!-- dGPU monitoring toggle (allows RTD3 suspend when off) -->
+                    <Grid x:Name="rowDgpuMonitor" ColumnDefinitions="*" Margin="0,4">
+                        <CheckBox Grid.Column="0" x:Name="checkDgpuMonitor"
+                                  Content="dGPU temperature monitoring"
+                                  VerticalAlignment="Center"
+                                  IsCheckedChanged="CheckDgpuMonitor_Changed" />
+                    </Grid>
+                    <TextBlock x:Name="labelDgpuMonitorHint" Classes="label-dim"
+                               Text="Disable to let dGPU enter runtime suspend (RTD3)"
+                               TextWrapping="Wrap" Margin="24,0,0,0" />
                 </StackPanel>
             </Border>
 
@@ -678,7 +689,7 @@
                     <CheckBox x:Name="checkXGMLights" Content="Dock lights"
                               Margin="0,4"
                               IsCheckedChanged="CheckXGMLights_Changed" />
-                    <Grid ColumnDefinitions="120,*,40" Margin="0,4">
+                    <Grid x:Name="panelXgmBrightness" ColumnDefinitions="120,*,40" Margin="0,4">
                         <TextBlock Grid.Column="0" x:Name="labelXgmBrightnessLabel"
                                    Text="Brightness" Classes="label-dim"
                                    VerticalAlignment="Center" />
@@ -747,6 +758,12 @@
                                       Width="200" SelectionChanged="ComboEppTurbo_Changed" />
                         </Grid>
                     </StackPanel>
+
+                    <!-- nvidia-powerd draws power sampling the dGPU even when it
+                         is idle. Visible only when the unit is installed. -->
+                    <CheckBox x:Name="checkNvidiaPowerdBattery" Content="Stop nvidia-powerd on battery"
+                              Margin="0,4" IsVisible="False"
+                              IsCheckedChanged="CheckNvidiaPowerdBattery_Changed" />
 
                     <!-- Battery Health -->
                     <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">

@@ -35,7 +35,7 @@ public sealed class EqResponseView : Control
 
     public event Action<int>? BandChanged;
 
-    public int PostGainCentiDb { get; set; } = 0;
+    public int PostGainCentiDb { get; set; }
 
     /// <summary>Fires after a line-drag tick changes the post-EQ gain.</summary>
     public event Action? PostGainChanged;
@@ -43,9 +43,9 @@ public sealed class EqResponseView : Control
     private int _dragBand = -1;
     private int _hoverBand = -1;
 
-    private bool _dragLineOnly = false;
-    private double _dragInitialPressY = 0;
-    private int _dragInitialPostGainCentiDb = 0;
+    private bool _dragLineOnly;
+    private double _dragInitialPressY;
+    private int _dragInitialPostGainCentiDb;
 
     private const int PostGainMinCentiDb = -3600;
     private const int PostGainMaxCentiDb = 3600;

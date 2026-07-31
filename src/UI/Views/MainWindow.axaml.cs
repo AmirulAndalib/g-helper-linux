@@ -44,9 +44,6 @@ public partial class MainWindow : Window
 
     // Accent colors matching G-Helper's RForm.cs
     private static readonly IBrush AccentBrush = new SolidColorBrush(Color.Parse("#4CC2FF"));
-    private static readonly IBrush EcoBrush = new SolidColorBrush(Color.Parse("#06B48A"));
-    private static readonly IBrush StandardBrush = new SolidColorBrush(Color.Parse("#3AAEEF"));
-    private static readonly IBrush TurboBrush = new SolidColorBrush(Color.Parse("#FF2020"));
     private static readonly IBrush TransparentBrush = Brushes.Transparent;
     private static readonly IBrush CoinGoldBrush = new SolidColorBrush(Color.Parse("#FFD700"));
     private static readonly IBrush CoinDarkBrush = new SolidColorBrush(Color.Parse("#8B6914"));
@@ -1384,27 +1381,17 @@ public partial class MainWindow : Window
 
     private void ButtonMiniled_Click(object? sender, RoutedEventArgs e)
     {
-        var wmi = App.Wmi;
-        if (wmi == null)
-            return;
-
-        int current = wmi.GetMiniLedMode();
-        int next = current switch
-        {
-            0 => 1,
-            1 => 2,
-            _ => 0
-        };
-        wmi.SetMiniLedMode(next);
-        Helpers.Logger.WriteLine($"MiniLED mode → {next}");
+        int next = Display.MiniLed.CycleMode();
+        if (next >= 0)
+            Helpers.Logger.WriteLine($"MiniLED mode → {next}");
     }
 
     // Keyboard / AURA
 
-    private bool _auraInitialized = false;
-    private static bool _auraHardwareInitialized = false;
-    private bool _suppressAuraEvents = false;
-    private bool _suppressEvents = false;
+    private bool _auraInitialized;
+    private static bool _auraHardwareInitialized;
+    private bool _suppressAuraEvents;
+    private bool _suppressEvents;
 
     public void RefreshKeyboard()
     {

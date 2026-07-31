@@ -35,7 +35,6 @@ public class ModeControl
     // Power limit bounds (matches Windows G-Helper AsusACPI constructor)
 
     internal const int MinTotal = 5;
-    private const int MinGpuBoost = 5;
 
     internal static int GetMaxTotal()
     {
@@ -591,12 +590,16 @@ public class ModeControl
 
         int maxGpuBoost = GetMaxGpuBoost();
 
+        // Restart nvidia-powerd once after the batch, not per attribute.
+        bool nvAttrWritten = false;
+
         int nvBoost = Helpers.AppConfig.GetMode("gpu_boost");
         if (nvBoost > maxGpuBoost)
             nvBoost = maxGpuBoost;
         if (nvBoost > 0 && wmi.IsFeatureSupported(Platform.Linux.AsusAttributes.NvDynamicBoost))
         {
             wmi.SetPptLimit(Platform.Linux.AsusAttributes.NvDynamicBoost, nvBoost);
+            nvAttrWritten = true;
             Helpers.Logger.WriteLine($"AutoGpuPower: GPU boost = {nvBoost}W (max={maxGpuBoost}W)");
         }
 
@@ -604,12 +607,14 @@ public class ModeControl
         if (nvTemp > 0 && wmi.IsFeatureSupported(Platform.Linux.AsusAttributes.NvTempTarget))
         {
             wmi.SetPptLimit(Platform.Linux.AsusAttributes.NvTempTarget, nvTemp);
+            nvAttrWritten = true;
         }
 
         int nvBaseTgp = Helpers.AppConfig.GetMode("gpu_base_tgp");
         if (nvBaseTgp > 0 && wmi.IsFeatureSupported(Platform.Linux.AsusAttributes.NvBaseTgp))
         {
             wmi.SetPptLimit(Platform.Linux.AsusAttributes.NvBaseTgp, nvBaseTgp);
+            nvAttrWritten = true;
             Helpers.Logger.WriteLine($"AutoGpuPower: nv_base_tgp = {nvBaseTgp}W");
         }
 
@@ -617,8 +622,12 @@ public class ModeControl
         if (nvTgp > 0 && wmi.IsFeatureSupported(Platform.Linux.AsusAttributes.NvTgp))
         {
             wmi.SetPptLimit(Platform.Linux.AsusAttributes.NvTgp, nvTgp);
+            nvAttrWritten = true;
             Helpers.Logger.WriteLine($"AutoGpuPower: nv_tgp = {nvTgp}W");
         }
+
+        if (nvAttrWritten)
+            Gpu.GPUModeControl.RefreshNvidiaPowerd();
 
         if (nvCtl != null && nvCtl.IsAvailable())
         {
@@ -648,10 +657,13 @@ public class ModeControl
     /// limit, unlocked GPU + VRAM clocks, zero clock offsets.</summary>
     private static void ResetGpuTuning(Platform.IHardwareControl wmi, Gpu.NVidia.LinuxNvidiaGpuControl? nv)
     {
-        WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvDynamicBoost);
-        WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTempTarget);
-        WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvBaseTgp);
-        WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTgp);
+        bool nvAttrWritten = WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvDynamicBoost);
+        nvAttrWritten |= WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTempTarget);
+        nvAttrWritten |= WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvBaseTgp);
+        nvAttrWritten |= WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTgp);
+
+        if (nvAttrWritten)
+            Gpu.GPUModeControl.RefreshNvidiaPowerd();
 
         if (nv != null && nv.IsAvailable())
         {
@@ -662,14 +674,16 @@ public class ModeControl
         }
     }
 
-    private static void WriteFwAttrDefault(Platform.IHardwareControl wmi, Platform.Linux.AttrDef attr)
+    /// <summary>Returns true when the attribute was actually written.</summary>
+    private static bool WriteFwAttrDefault(Platform.IHardwareControl wmi, Platform.Linux.AttrDef attr)
     {
         if (!wmi.IsFeatureSupported(attr))
-            return;
+            return false;
         var range = wmi.GetAttributeRange(attr);
         if (range == null || range.Default <= 0)
-            return;
+            return false;
         wmi.SetPptLimit(attr, range.Default);
+        return true;
     }
 
     /// <summary>

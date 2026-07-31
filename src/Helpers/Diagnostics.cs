@@ -1730,7 +1730,7 @@ public static class Diagnostics
                 "2" => "Silent",
                 _ => "?",
             };
-            sb.AppendLine($"  Throttle policy: {throttleRaw ?? "?"} ({label})");
+            sb.AppendLine($"  Throttle policy: {throttleRaw} ({label})");
         }
 
         var noTurbo = Platform.Linux.SysfsHelper.ReadAttribute("/sys/devices/system/cpu/intel_pstate/no_turbo");

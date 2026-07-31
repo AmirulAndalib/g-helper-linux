@@ -244,7 +244,10 @@ public static class TraySystemMonitor
         try
         {
             cpuTemp = App.Wmi?.DeviceGet(0x00120094) ?? -1; // Temp_CPU
-            gpuTemp = App.Wmi?.DeviceGet(0x00120097) ?? -1; // Temp_GPU
+            // Skip dGPU temp when idle (resets autosuspend timer, blocks RTD3).
+            if (!Gpu.NVidia.LinuxNvidiaGpuControl.ShouldSkipDgpuTelemetry()
+                && AppConfig.IsNotFalse("dgpu_monitor"))
+                gpuTemp = App.Wmi?.DeviceGet(0x00120097) ?? -1; // Temp_GPU
         }
         catch
         {

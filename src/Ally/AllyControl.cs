@@ -55,7 +55,7 @@ public class AllyControl
     // Auto-mode state (re-evaluated every 300ms when _mode == Auto).
     private static ControllerMode _mode = ControllerMode.Auto;
     private static ControllerMode _applyMode = ControllerMode.Mouse;
-    private static int _autoCount = 0;
+    private static int _autoCount;
 
     // Manual TDP override (used by HandheldWindow / ModeControl integration).
     // Without an FPS feedback loop we can't dynamically adjust like Windows

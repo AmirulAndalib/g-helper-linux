@@ -1349,6 +1349,8 @@ public class GPUModeControl
 
     private const int NvidiaLoadAttempts = 3;
     private const int NvidiaLoadSettleMs = 4000;
+    // modprobe (10s) + settle (4s) + escalation + node wait (6s), with headroom.
+    private const int NvidiaLoadAttemptBudgetSec = 30;
 
     /// <summary>
     /// modprobe nvidia and confirm it bound. A GPU whose rail is still
@@ -1362,6 +1364,12 @@ public class GPUModeControl
     {
         for (int attempt = 1; attempt <= NvidiaLoadAttempts; attempt++)
         {
+            // The whole ladder can outlast the caller's opening pause, and a
+            // query landing on a GPU whose link is still down is what wedges
+            // nvidia-smi in D-state. Refresh the window on every attempt.
+            NVidia.GpuQueryGate.Extend(TimeSpan.FromSeconds(NvidiaLoadAttemptBudgetSec),
+                $"nvidia load attempt {attempt}");
+
             SysfsHelper.RunSudoOrPkexec(SysfsHelper.GpuHelperPath,
                 new[] { "modprobe", "nvidia" }, sudoTimeoutMs: 10000);
 
@@ -1420,7 +1428,10 @@ public class GPUModeControl
     private GpuSwitchResult ExecuteEnableDgpu()
     {
         Logger.WriteLine("GPUModeControl: enabling dGPU (dgpu_disable=0) - always safe");
-        NVidia.GpuQueryGate.Pause(TimeSpan.FromSeconds(45), "dGPU enable");
+        // SetGpuEco(false) can take 20s+ on asus-armoury and WaitForDgpuDevice
+        // another 22s, so a shorter budget can expire before the driver load
+        // even starts. Extended per attempt below; Resume() ends it on success.
+        NVidia.GpuQueryGate.Pause(TimeSpan.FromSeconds(60), "dGPU enable");
         try
         {
             _wmi.SetGpuEco(false);
@@ -1449,6 +1460,11 @@ public class GPUModeControl
                 NVidia.GpuQueryGate.Hold("dGPU did not re-appear");
                 return GpuSwitchResult.DgpuReenableFailed;
             }
+
+            // Device is back but the driver is not up yet; cover the load below
+            // (the nvidia path extends this again per attempt).
+            NVidia.GpuQueryGate.Extend(TimeSpan.FromSeconds(NvidiaLoadAttemptBudgetSec),
+                "dGPU present - loading driver");
 
             var dgpuDev = FindDgpuPciDevice();
             bool isAmd = dgpuDev?.vendor.Equals("0x1002", StringComparison.OrdinalIgnoreCase) == true;
@@ -1544,7 +1560,10 @@ public class GPUModeControl
                 {
                     string bootVgaPath = Path.Combine(dev, "boot_vga");
                     if (File.Exists(bootVgaPath) && File.ReadAllText(bootVgaPath).Trim() == "1")
-                        continue; // this is the AMD iGPU, not the dGPU
+                        continue;
+                    // DRM check: GPU driving the internal panel is the iGPU
+                    if (SysfsHelper.HasInternalDisplay(dev))
+                        continue;
                 }
                 return (Path.GetFileName(dev), vendor);
             }
@@ -1931,6 +1950,19 @@ public class GPUModeControl
         Logger.WriteLine($"GPUModeControl: slot-power {slot} = 1 ({(ok ? "OK" : "FAILED")}) [was {cur}]");
     }
 
+    /// <summary>Cut slot power after dgpu_disable=1 as extra insurance.</summary>
+    private static void TryPowerOffDgpuSlot()
+    {
+        string? slot = ResolveDgpuSlot();
+        if (string.IsNullOrEmpty(slot))
+            return;
+        int cur = SysfsHelper.ReadInt(TestPathPrefix + $"/sys/bus/pci/slots/{slot}/power", -1);
+        if (cur == 0)
+            return;
+        bool ok = RunSlotPower(slot!, "0");
+        Logger.WriteLine($"GPUModeControl: slot-power {slot} = 0 ({(ok ? "OK" : "FAILED")}) [was {cur}]");
+    }
+
     private static bool RunSlotPower(string slot, string value)
     {
         var r = SysfsHelper.RunSudoOrPkexec(
@@ -1939,10 +1971,56 @@ public class GPUModeControl
         return r != null;
     }
 
-    private static bool HasNvidiaDaemonsInstalled()
+    internal static bool HasNvidiaDaemonsInstalled()
         => File.Exists("/usr/lib/systemd/system/nvidia-powerd.service")
         || File.Exists("/etc/systemd/system/nvidia-powerd.service")
         || File.Exists("/lib/systemd/system/nvidia-powerd.service");
+
+    /// <summary>
+    /// nvidia-powerd samples the firmware TDP limits when it starts, so a
+    /// change to nv_dynamic_boost / nv_temp_target / nv_base_tgp / nv_tgp is
+    /// ignored until it restarts. No-op when the daemon is absent or stopped.
+    /// </summary>
+    internal static void RefreshNvidiaPowerd()
+    {
+        if (!HasNvidiaDaemonsInstalled())
+            return;
+
+        // Best-effort only. This runs on unattended AC/battery mode switches,
+        // so it must never escalate to a pkexec prompt; skip when sudo says no.
+        var r = SysfsHelper.RunSudoOrPkexec(SysfsHelper.GpuHelperPath,
+            new[] { "daemon", "try-restart", "nvidia-powerd" },
+            sudoTimeoutMs: 5000, allowPkexec: false);
+        Logger.WriteLine(r != null
+            ? "GPUModeControl: nvidia-powerd re-read GPU TDP limits"
+            : "GPUModeControl: nvidia-powerd try-restart skipped (not running or not permitted)");
+    }
+
+    /// <summary>
+    /// Start or stop nvidia-powerd to match the current power source, when the
+    /// user opted in. On AC it is always started, so turning the option off
+    /// while on battery does not leave the daemon down until the next unplug.
+    /// </summary>
+    internal static void ApplyNvidiaPowerdPolicy(bool onAc)
+    {
+        if (!HasNvidiaDaemonsInstalled())
+            return;
+
+        bool stopOnBattery = AppConfig.Is("nvidia_powerd_battery");
+        if (!stopOnBattery && !onAc)
+            return;
+
+        string verb = onAc ? "start" : "stop";
+        SysfsHelper.RunSudoOrPkexec(SysfsHelper.GpuHelperPath,
+            new[] { "daemon", "reset-failed", "nvidia-powerd" },
+            sudoTimeoutMs: 5000, allowPkexec: false);
+        var r = SysfsHelper.RunSudoOrPkexec(SysfsHelper.GpuHelperPath,
+            new[] { "daemon", verb, "nvidia-powerd" },
+            sudoTimeoutMs: 5000, allowPkexec: false);
+        Logger.WriteLine(r != null
+            ? $"GPUModeControl: nvidia-powerd {verb} (AC={onAc})"
+            : $"GPUModeControl: nvidia-powerd {verb} skipped (not permitted or already {verb}ed)");
+    }
 
     private static bool WaitForNvidiaModule(int timeoutMs)
     {
@@ -2019,12 +2097,9 @@ public class GPUModeControl
             if (_wmi.GetGpuEco())
             {
                 Logger.WriteLine("GPUModeControl: dgpu_disable=1 confirmed");
-                // Eco applied live - remove block artifacts (dgpu_disable=1 is persistent)
+                TryPowerOffDgpuSlot();
                 RemoveDriverBlock();
-                // Hide the NVIDIA Vulkan ICD while the dGPU is disabled.
                 ApplyVulkanIcd(dgpuAvailable: false);
-                // Holders may have been killed from the processes window before
-                // this safe-path switch - bring whitelisted user services back.
                 RestartStoppedHolderServices();
                 return GpuSwitchResult.Applied;
             }
@@ -2183,10 +2258,6 @@ public class GPUModeControl
         Logger.WriteLine(r2 != null ? "GPUModeControl: stopped nvidia-persistenced" : "GPUModeControl: nvidia-persistenced stop failed");
         Thread.Sleep(500);
 
-        // Freshly killed GPU processes (CUDA/LLM workloads especially) leave
-        // the kernel tearing down their contexts for seconds; unbinding while
-        // that runs blocks the unbind write. Wait for refcnt to go quiet.
-        WaitForNvidiaRefcntSettle(10000);
 
         return ReleaseNvidiaModulesAndPurgeHolders(FindNvidiaPciAddress(), out _);
     }
@@ -2254,7 +2325,7 @@ public class GPUModeControl
     }
 
     private static readonly string[] NvidiaModules =
-        { "nvidia_drm", "nvidia_modeset", "nvidia_uvm", "nvidia", "nvidia_wmi_ec_backlight" };
+        { "nvidia_drm", "nvidia_modeset", "nvidia_uvm", "nvidia_wmi_ec_backlight", "nvidia" };
 
     // Mirror of supergfxctl pci_device.rs:673 (iter.rev() unbind before power change).
     private record UnbindRecord(string Bdf, string DriverName);
@@ -2290,6 +2361,9 @@ public class GPUModeControl
         {
             Logger.WriteLine("GPUModeControl: dGPU BDF not resolvable - skipping sibling unbind step");
         }
+
+        // Settle after DRM+PCI uevent and unbind so compositor/ICD have time to release.
+        WaitForNvidiaRefcntSettle(10000);
 
         // Purge holders BEFORE touching the modules: rmmod fails with EBUSY
         // while any /dev/nvidia* fd or mapping exists, and the per-module
@@ -2335,6 +2409,8 @@ public class GPUModeControl
 
         if (!gone)
         {
+            LogNvidiaRefcntHolders();
+
             Logger.WriteLine("GPUModeControl: modules still loaded after release - rolling back unbinds");
             RollbackUnbinds(unbindStack);
             unbindStack = new List<UnbindRecord>();
@@ -2535,6 +2611,26 @@ public class GPUModeControl
                 sudoTimeoutMs: 5000, pkexecTimeoutMs: 30000);
     }
 
+    private static void LogNvidiaRefcntHolders()
+    {
+        try
+        {
+            var result = SysfsHelper.RunSudoOrPkexec(
+                SysfsHelper.GpuHelperPath,
+                new[] { "nvidia-refcnt-holders" },
+                sudoTimeoutMs: 5000);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                foreach (var line in result.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    Logger.WriteLine($"GPUModeControl: refcnt-holders: {line.Trim()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.WriteLine($"GPUModeControl: refcnt-holders failed: {ex.Message}");
+        }
+    }
+
     private static void RmmodOneModule(string module)
     {
         const int maxTries = 7;
@@ -2686,6 +2782,9 @@ public class GPUModeControl
             if (holders.Count == 0)
             {
                 Logger.WriteLine($"GPUModeControl: {reason} holders=0 nvidia/refcnt={refcnt}");
+                var sys0 = NVidia.NvidiaProcessScanner.GetFilteredSystemProcesses();
+                if (sys0.Count > 0)
+                    Logger.WriteLine($"GPUModeControl: {reason} system holders (won't kill): [{string.Join(", ", sys0)}]");
                 return;
             }
             var parts = new List<string>(holders.Count);
@@ -2699,6 +2798,10 @@ public class GPUModeControl
                 parts.Add(detail);
             }
             Logger.WriteLine($"GPUModeControl: {reason} holders={holders.Count} nvidia/refcnt={refcnt} [{string.Join(", ", parts)}]");
+
+            var sys = NVidia.NvidiaProcessScanner.GetFilteredSystemProcesses();
+            if (sys.Count > 0)
+                Logger.WriteLine($"GPUModeControl: {reason} system holders (won't kill): [{string.Join(", ", sys)}]");
         }
         catch (Exception ex)
         {

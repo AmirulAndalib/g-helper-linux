@@ -1,5 +1,16 @@
 namespace GHelper.Linux.Platform.Linux;
 
+/// <summary>Write behavior for firmware attributes.</summary>
+public enum AttrBehavior
+{
+    Immediate,
+    Ppt,
+    Gpu,
+    Bios,
+    ReadOnly,
+    Norestore,
+}
+
 /// <summary>
 /// Central definition of all ASUS WMI sysfs attributes.
 /// Maps between legacy asus-nb-wmi sysfs names and asus-armoury firmware-attribute names.
@@ -30,12 +41,17 @@ public sealed class AttrDef
     /// <summary>Human-readable description for diagnostics.</summary>
     public string Description { get; }
 
-    public AttrDef(string legacyName, string? fwAttrName = null, string description = "", bool preferFwAttr = false)
+    /// <summary>Write behavior classification.</summary>
+    public AttrBehavior Behavior { get; }
+
+    public AttrDef(string legacyName, string? fwAttrName = null, string description = "",
+        bool preferFwAttr = false, AttrBehavior behavior = AttrBehavior.Immediate)
     {
         LegacyName = legacyName;
         FwAttrName = fwAttrName ?? legacyName;
         Description = description;
         PreferFwAttr = preferFwAttr;
+        Behavior = behavior;
     }
 
     /// <summary>Implicit conversion to string returns the legacy name for backward compatibility.</summary>
@@ -58,52 +74,55 @@ public static class AsusAttributes
     // PPT Power Limits
 
     public static readonly AttrDef PptPl1Spl = new("ppt_pl1_spl",
-        description: "PL1 sustained power limit");
+        description: "PL1 sustained power limit", behavior: AttrBehavior.Ppt);
 
     public static readonly AttrDef PptPl2Sppt = new("ppt_pl2_sppt",
-        description: "PL2 short burst power limit");
+        description: "PL2 short burst power limit", behavior: AttrBehavior.Ppt);
 
     public static readonly AttrDef PptFppt = new("ppt_fppt", fwAttrName: "ppt_pl3_fppt",
-        description: "fPPT fast boost power limit");
+        description: "fPPT fast boost power limit", behavior: AttrBehavior.Ppt);
 
     public static readonly AttrDef PptApuSppt = new("ppt_apu_sppt",
-        description: "APU SPPT power limit");
+        description: "APU SPPT power limit", behavior: AttrBehavior.Ppt);
 
     public static readonly AttrDef PptPlatformSppt = new("ppt_platform_sppt",
-        description: "Platform SPPT power limit");
+        description: "Platform SPPT power limit", behavior: AttrBehavior.Ppt);
 
     // NVIDIA GPU
 
     public static readonly AttrDef NvDynamicBoost = new("nv_dynamic_boost",
-        description: "NVIDIA dynamic boost");
+        description: "NVIDIA dynamic boost", behavior: AttrBehavior.Ppt);
 
     public static readonly AttrDef NvTempTarget = new("nv_temp_target",
-        description: "NVIDIA temperature target");
+        description: "NVIDIA temperature target", behavior: AttrBehavior.Ppt);
 
     // Armoury-only (no legacy equivalent)
     public static readonly AttrDef NvBaseTgp = new("nv_base_tgp",
-        description: "NVIDIA base TGP (sustained cap)");
+        description: "NVIDIA base TGP (sustained cap)", behavior: AttrBehavior.ReadOnly);
 
     public static readonly AttrDef NvTgp = new("nv_tgp",
-        description: "NVIDIA max TGP (settable ceiling)");
+        description: "NVIDIA max TGP (settable ceiling)", behavior: AttrBehavior.Ppt);
 
     // GPU Mode
 
     public static readonly AttrDef DgpuDisable = new("dgpu_disable",
         description: "dGPU power (Eco mode)",
-        preferFwAttr: true);
+        preferFwAttr: true, behavior: AttrBehavior.Gpu);
 
+    // Both backends read the same WMI devstate. The asus-nb-wmi attr is
+    // deprecated and absent under CONFIG_ASUS_WMI_DEPRECATED_ATTRS=n.
     public static readonly AttrDef GpuMuxMode = new("gpu_mux_mode",
-        description: "GPU MUX switch");
+        description: "GPU MUX switch",
+        preferFwAttr: true, behavior: AttrBehavior.Gpu);
 
     public static readonly AttrDef EgpuEnable = new("egpu_enable",
-        description: "eGPU enable");
+        description: "eGPU enable", behavior: AttrBehavior.Gpu);
 
     public static readonly AttrDef EgpuConnected = new("egpu_connected",
-        description: "eGPU dock connected (read-only)");
+        description: "eGPU dock connected (read-only)", behavior: AttrBehavior.ReadOnly);
 
     public static readonly AttrDef ApuMem = new("apu_mem",
-        description: "APU UMA buffer size");
+        description: "APU UMA buffer size", behavior: AttrBehavior.Norestore);
 
     // Display
 
@@ -122,7 +141,7 @@ public static class AsusAttributes
     // System
 
     public static readonly AttrDef BootSound = new("boot_sound",
-        description: "Boot sound");
+        description: "Boot sound", behavior: AttrBehavior.Bios);
 
     public static readonly AttrDef McuPowersave = new("mcu_powersave",
         description: "MCU power saving (USB autosuspend)");
@@ -131,7 +150,7 @@ public static class AsusAttributes
         description: "Panel HD mode");
 
     public static readonly AttrDef ChargeMode = new("charge_mode",
-        description: "Charge mode (read-only)");
+        description: "Charge mode (read-only)", behavior: AttrBehavior.ReadOnly);
 
     // All known attributes (for diagnostics enumeration)
 

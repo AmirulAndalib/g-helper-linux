@@ -11,6 +11,11 @@ namespace GHelper.Linux.Input;
 /// </summary>
 public static class InputDispatcher
 {
+    // Debounce rapid FnF5: avoids ACPI mutex contention between our
+    // sysfs writes (process ctx) and hid_asus WMI calls (BH ctx).
+    private static CancellationTokenSource? _perfDebounce;
+    private static int _perfCycleCount;
+
     // Legacy event codes for non-configurable keys
     public const int EventKbBrightnessUp = 196;   // Fn+F3
     public const int EventKbBrightnessDown = 197;  // Fn+F2
@@ -198,11 +203,7 @@ public static class InputDispatcher
                 break;
 
             case "performance":
-                App.Mode?.CyclePerformanceMode();
-                App.UpdateTrayIcon();
-                // Refresh main window if visible
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    App.MainWindowInstance?.RefreshPerformanceMode());
+                DebounceCyclePerformance();
                 break;
 
             case "aura":
@@ -266,12 +267,11 @@ public static class InputDispatcher
                 break;
 
             case "miniled":
-                int currentMiniLed = App.Wmi?.GetMiniLedMode() ?? 0;
-                int nextMiniLed = currentMiniLed == 0 ? 1 : 0;
-                App.Wmi?.SetMiniLedMode(nextMiniLed);
-                App.System?.ShowNotification(Labels.Get("mini_led"),
-                    nextMiniLed == 1 ? Labels.Get("enabled") : Labels.Get("disabled"),
-                    "preferences-desktop-display");
+                int nextMiniLed = Display.MiniLed.CycleMode();
+                if (nextMiniLed >= 0)
+                    App.System?.ShowNotification(Labels.Get("mini_led"),
+                        nextMiniLed != 0 ? Labels.Get("enabled") : Labels.Get("disabled"),
+                        "preferences-desktop-display");
                 break;
 
             case "camera":
@@ -336,6 +336,35 @@ public static class InputDispatcher
         App.System?.ShowNotification($"Audio: {effectName}",
             on ? Labels.Get("enabled") : Labels.Get("disabled"),
             on ? "audio-x-generic" : "audio-volume-muted");
+    }
+
+    /// <summary>Coalesce rapid FnF5 presses over 300ms, apply once.</summary>
+    private static void DebounceCyclePerformance()
+    {
+        _perfDebounce?.Cancel();
+        _perfDebounce = new CancellationTokenSource();
+        Interlocked.Increment(ref _perfCycleCount);
+        var token = _perfDebounce.Token;
+        _ = Task.Delay(300, token).ContinueWith(t =>
+        {
+            if (t.IsCanceled) return;
+            int n = Interlocked.Exchange(ref _perfCycleCount, 0);
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var mode = App.Mode;
+                if (mode == null) return;
+                // Advance n steps through the mode list
+                int target = Mode.Modes.GetCurrent();
+                var list = Mode.Modes.GetList();
+                if (list.Count == 0) return;
+                int idx = list.IndexOf(target);
+                if (idx < 0) idx = 0;
+                idx = (idx + n) % list.Count;
+                mode.SetPerformanceMode(list[idx], notify: true);
+                App.UpdateTrayIcon();
+                App.MainWindowInstance?.RefreshPerformanceMode();
+            });
+        }, TaskScheduler.Default);
     }
 
     private static void CycleScreenRefreshRate()

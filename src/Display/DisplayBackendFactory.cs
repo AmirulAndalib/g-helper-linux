@@ -111,7 +111,7 @@ public static class DisplayBackendFactory
     /// Detect the active Wayland compositor.
     /// Returns: "kwin", "sway", "hyprland", "gnome-shell", "niri", "river", "wayfire", "labwc", "cosmic", or null.
     /// </summary>
-    private static string? DetectCompositor()
+    public static string? DetectCompositor()
     {
         // XDG_CURRENT_DESKTOP is the most reliable
         var desktop = Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP")?.ToLowerInvariant();

@@ -49,6 +49,7 @@ int do_modprobe(int argc, char **argv);
 int do_vulkan_icd(int argc, char **argv);
 int do_egl_vendor(int argc, char **argv);
 int do_drm_notify_remove(int argc, char **argv);
+int do_nvidia_refcnt_holders(void);
 int do_nvml(int argc, char **argv);
 int do_nvml_temp(void);
 int do_nvml_info(void);

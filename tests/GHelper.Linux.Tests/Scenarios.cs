@@ -14,6 +14,7 @@ using GHelper.Linux.Gpu;
 using GHelper.Linux.Helpers;
 using GHelper.Linux.Platform.Linux;
 using static GHelper.Linux.Tests.Harness;
+using Gate = GHelper.Linux.Gpu.NVidia.GpuQueryGate;
 
 namespace GHelper.Linux.Tests;
 
@@ -107,6 +108,10 @@ public static class Scenarios
         Topo_ForeignSlotCache_NotSecondGpu();
         Topo_StaleSlotCache_ClearedAfterThreeStarts();
         Topo_NouveauOnDisk_WithValidatedSlot_PciUsable();
+
+        Console.WriteLine("\n GPU query gate ");
+        Gate_Extend_NeverShortensWindow();
+        Gate_Extend_DoesNotClearHold();
     }
 
     // 
@@ -1256,5 +1261,39 @@ public static class Scenarios
                 "validated slot outweighs weak module evidence");
             Assert(LinuxAsusWmi.IsPciBackendUsable(),
                 "PCI backend usable: nouveau on disk + validated slot");
+        });
+
+    // A dGPU enable can outrun its opening pause, so the recovery ladder
+    // extends the window as it goes. Extending must never pull the deadline
+    // in, or a long recovery would un-pause itself mid-flight.
+    static void Gate_Extend_NeverShortensWindow()
+        => Scenario(nameof(Gate_Extend_NeverShortensWindow), sb =>
+        {
+            Gate.Resume();
+
+            Gate.Pause(TimeSpan.FromSeconds(60), "test");
+            Gate.Extend(TimeSpan.Zero, "test");
+            Assert(Gate.IsPaused, "a shorter Extend does not shorten an open window");
+
+            Gate.Resume();
+            Gate.Pause(TimeSpan.Zero, "test");
+            Assert(!Gate.IsPaused, "zero pause is already expired");
+            Gate.Extend(TimeSpan.FromSeconds(60), "test");
+            Assert(Gate.IsPaused, "Extend reopens an expired window");
+
+            Gate.Resume();
+        });
+
+    static void Gate_Extend_DoesNotClearHold()
+        => Scenario(nameof(Gate_Extend_DoesNotClearHold), sb =>
+        {
+            Gate.Resume();
+
+            Gate.Hold("test");
+            Gate.Extend(TimeSpan.Zero, "test");
+            Assert(Gate.IsPaused, "Hold survives a zero Extend");
+
+            Gate.Resume();
+            Assert(!Gate.IsPaused, "Resume clears Hold");
         });
 }

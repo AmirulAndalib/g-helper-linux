@@ -79,6 +79,8 @@ public partial class MonitorWindow : Window
 
         Labels.LanguageChanged += OnLanguageChanged;
 
+        Helpers.SystemTelemetry.ResetCpuSample();
+
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => PollSensors();
         _timer.Start();
@@ -268,10 +270,21 @@ public partial class MonitorWindow : Window
             catch { }
             AddValue(_batteryPowerValues, batteryW);
 
+            // procfs counters - no firmware equivalent, so read here.
+            int cpuUsage = Helpers.SystemTelemetry.GetCpuUsagePercent();
+            int cpuMhz = Helpers.SystemTelemetry.GetCpuFrequencyMhz();
+            int ramUsage = Helpers.SystemTelemetry.GetRamUsagePercent();
+
             // Update header with live summary
             string stats = $"CPU: {(cpuTemp > 0 ? Helpers.TempHelper.FormatTemp(cpuTemp) : "--")}  " +
                            $"GPU: {(gpuTemp > 0 ? Helpers.TempHelper.FormatTemp(gpuTemp) : "--")}  " +
                            $"Fans: {Fan.FanSensorControl.FormatFan(0, cpuFan)}/{Fan.FanSensorControl.FormatFan(1, gpuFan)}";
+            if (cpuUsage >= 0)
+                stats += $"  Usage: {cpuUsage}%";
+            if (cpuMhz > 0)
+                stats += $"  Clock: {cpuMhz} MHz";
+            if (ramUsage >= 0)
+                stats += $"  RAM: {ramUsage}%";
             if (gpuLoad.HasValue && gpuLoad.Value >= 0)
                 stats += $"  Load: {gpuLoad.Value}%";
             if (batteryW > 0)

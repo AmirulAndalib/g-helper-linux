@@ -8,6 +8,33 @@
 
 ### Changed
 
+## v1.0.90 (2026-08-02)
+
+### Added
+
+- FnF5 debounce: coalesces rapid performance-mode keypresses over 300ms to prevent kernel BUG from ACPI mutex contention.
+- dGPU temperature monitoring toggle in Extra Window.
+- Battery time-to-empty/full estimate and charge-based (uAh) battery support in Battery Info.
+- Wayland touchpad/touchscreen toggle via KWin D-Bus, GNOME gsettings, and COSMIC config.
+- SystemTelemetry helper and GpuQueryGate for gated GPU polling.
+- gpu-helper: drm_notify_remove and nvidia_refcnt_holders commands.
+- SysfsHelper: FindConnectedDisplays and HasInternalDisplay for DRM topology.
+- Changelog button in Updates window.
+
+### Fixed
+
+- ExtraWindow _suppressEvents clobber causing spurious "display set to Auto" notification on window open.
+- GPU tuning reset now refreshes nvidia-powerd after writing firmware attributes.
+- gpu-helper snprintf buffer overflow and comment syntax warnings.
+
+### Changed
+
+- AttrBehavior enum classifies firmware attribute write semantics.
+- MiniLED mode count read from firmware instead of hardcoded 2.
+- GpuMuxMode prefers firmware-attribute backend.
+- XGM brightness panel hidden when only kernel LED class is available.
+- Removed redundant default initializers.
+
 ## v1.0.89 (2026-07-31)
 
 <img width="521" height="685" alt="screenshot" src="https://github.com/user-attachments/assets/2488c2ce-2f28-4642-81df-8f9eeebd2e1d" />
