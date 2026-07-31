@@ -443,6 +443,11 @@ public class App : Application
             ? "Ryzen Curve Optimizer: available via ryzen_smu driver"
             : $"Ryzen Curve Optimizer: unavailable ({Smu.UnavailableReason})");
 
+        // Re-apply saved ryzenadj values (SMU resets on reboot). Off the UI
+        // thread; non-interactive inside, so no auth prompt can appear.
+        if (Platform.Linux.RyzenPower.IsRyzenCpu)
+            Task.Run(Platform.Linux.RyzenPower.ApplySavedOnStart);
+
         IntelUv = new IntelUndervolt();
         if (IntelUv.IsAvailable)
             Logger.WriteLine("Intel CPU undervolt: available (MSR 0x150 mailbox)");
@@ -1163,6 +1168,11 @@ public class App : Application
             { USB.Aura.ApplyConfiguredBrightness("Resume"); }
             catch { }
 
+            // Firmware may drop M-key EC bindings across suspend.
+            try
+            { Task.Run(GHelper.Linux.Input.MKeyControl.ApplyAll); }
+            catch { }
+
             if (AppConfig.IsLenovoDevice())
             {
                 if (AppConfig.Is("lenovo_mic_boost_fix"))
@@ -1334,6 +1344,10 @@ public class App : Application
         catch { }
 
         try
+        { USB.AsusLampArray.Release(); }
+        catch { }
+
+        try
         { Power?.StopPowerMonitoring(); }
         catch { }
         try
@@ -1371,6 +1385,9 @@ public class App : Application
         DisposeTrayIcons();
 
         // Cleanup
+        try
+        { USB.AsusLampArray.Release(); }
+        catch { }
         Power?.StopPowerMonitoring();
         _peripheralPollTimer?.Dispose();
         UI.Views.ExtraWindow.StopClamshellInhibit();

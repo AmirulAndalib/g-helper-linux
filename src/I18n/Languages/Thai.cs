@@ -68,6 +68,7 @@ public static class Thai
         ["color_primary"] = "สีหลัก",
         ["color_secondary"] = "สีรอง",
         ["pick_color"] = "เลือกสี",
+        ["aura_random_color"] = "สุ่ม",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Thai
         ["action_miniled"] = "สลับ MiniLED",
         ["action_camera"] = "สลับกล้อง",
         ["action_touchpad"] = "สลับทัชแพด",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ปุ่ม ROG / M5",
@@ -876,6 +887,7 @@ public static class Thai
         ["sysfiles_diff_close"] = "ปิด",
         ["sysfiles_remove"] = "นำออก",
         ["sysfiles_name_gpu_helper"] = "ตัวช่วย GPU แบบมีสิทธิ์พิเศษ",
+        ["sysfiles_name_ryzenadj"] = "เครื่องมือปรับพลังงาน AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "สคริปต์ตัวช่วยบล็อก GPU",
         ["sysfiles_name_gpu_boot_script"] = "สคริปต์บูต GPU",
         ["sysfiles_name_gpu_boot_service"] = "บริการบูต GPU (systemd)",

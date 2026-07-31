@@ -36,5 +36,13 @@ namespace GHelper.Linux
 
         // LinuxNvidiaGpuControl uses App.System?.ShowNotification(); null = no-op.
         public static ISystemIntegration? System => null;
+
+        // GPUModeControl calls App.Mode?.WaitForApply(); null = no-op.
+        internal sealed class ModeControlStub
+        {
+            public void WaitForApply() { }
+        }
+
+        public static ModeControlStub? Mode => null;
     }
 }

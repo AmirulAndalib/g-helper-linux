@@ -674,6 +674,29 @@ public static class SysfsHelper
         return DefaultGpuHelperInstallPath;
     }
 
+    public static readonly string RyzenadjPath = ResolveRyzenadjPath();
+
+    /// <summary>Where the bundled ryzenadj CLI should be installed.
+    /// Sealed-root SteamOS cannot write /opt; /etc is a writable overlay.</summary>
+    internal static string DefaultRyzenadjInstallPath =>
+        ImmutableOs.IsSteamOs && ImmutableOs.IsRootReadOnly()
+            ? "/etc/ghelper/ryzenadj"
+            : "/opt/ghelper/ryzenadj";
+
+    private static string ResolveRyzenadjPath()
+    {
+        // NixOS: module puts the nixpkgs ryzenadj on PATH
+        var nixPath = NixOS.ResolveRyzenadj();
+        if (nixPath != null)
+            return nixPath;
+
+        foreach (var p in new[] { "/opt/ghelper/ryzenadj", "/etc/ghelper/ryzenadj" })
+            if (System.IO.File.Exists(p))
+                return p;
+
+        return DefaultRyzenadjInstallPath;
+    }
+
     private static string ResolveSudoPath()
     {
         foreach (var p in new[]
@@ -803,6 +826,41 @@ public static class SysfsHelper
         Array.Copy(args, 0, pkArgs, 1, args.Length);
         var (pkExit, pkOut, pkErr) = RunProcessWithStderr("pkexec", pkArgs, pkexecTimeoutMs);
         return (pkExit == 0 ? pkOut : null, pkErr, pkExit);
+    }
+
+    /// <summary>
+    /// Like <see cref="RunSudoOrPkexecEx"/> but stdout is preserved even when
+    /// the command exits non-zero. For tools like ryzenadj that report per-item
+    /// results on stdout and exit non-zero if any single item failed.
+    /// </summary>
+    public static (string stdout, string stderr, int exitCode) RunSudoOrPkexecRaw(
+        string command, string[] args, int sudoTimeoutMs = 5000, int pkexecTimeoutMs = 60000, bool allowPkexec = true)
+    {
+        var sudoArgs = new string[args.Length + 2];
+        sudoArgs[0] = "-n";
+        sudoArgs[1] = command;
+        Array.Copy(args, 0, sudoArgs, 2, args.Length);
+
+        var (exitCode, stdout, stderr) = RunProcessWithStderr(SudoPath, sudoArgs, sudoTimeoutMs);
+
+        bool sudoRefused = exitCode != 0
+                        && (stderr.StartsWith("sudo:", StringComparison.Ordinal)
+                         || stderr.Contains("not allowed to execute", StringComparison.Ordinal)
+                         || stderr.Contains("may not run sudo", StringComparison.Ordinal));
+        if (!sudoRefused)
+            return (stdout, stderr, exitCode);
+
+        if (!allowPkexec)
+        {
+            LogEscalationSkip(command, args);
+            return (stdout, stderr, exitCode);
+        }
+
+        var pkArgs = new string[args.Length + 1];
+        pkArgs[0] = command;
+        Array.Copy(args, 0, pkArgs, 1, args.Length);
+        var (pkExit, pkOut, pkErr) = RunProcessWithStderr("pkexec", pkArgs, pkexecTimeoutMs);
+        return (pkOut, pkErr, pkExit);
     }
 
     /// <summary>Run a command and return (exitCode, stdout, stderr). Never returns null.</summary>

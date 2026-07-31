@@ -8,6 +8,43 @@
 
 ### Changed
 
+## v1.0.89 (2026-07-31)
+
+### Added
+
+- Bundled RyzenAdj CLI.
+- LampArray lighting for 2024+ Strix/Scar (G614/G615/G634/G635/G814/G815/G834/G835) and Slash: software-painted modes (Heatmap, Battery, Gradient, Zone Test) drive keyboard and lightbar through the LampArray reports these firmwares require.
+- Firmware rebinding of the Strix M1/M2/M3/M5 macro keys in Extra Window.
+- TUF Gaming Mini Miku Edition mouse, wireless 0x1C57 / wired 0x1C56, with RGB.
+- Zenbook Duo (UX8407) detachable keyboard AURA PIDs 0x1CD7/0x1CD8 + 0x1BF2.
+
+### Fixed
+
+- One lock now serializes all ASUS HID traffic (AURA, backlight, Slash, LampArray).
+- GPU temperature polling no longer blocks NVIDIA dGPU runtime suspend (#157).
+- AMD SMU current limits (TDC/EDC VDD and SoC) apply again (#156), via the bundled ryzenadj CLI.
+- Sudoers rule renamed `ghelper-gpu` -> `zz-ghelper-gpu`: sudoers.d is read lexically and the last match wins (SteamOS fix).
+- Fans window CPU tab Reset now also resets the AMD SMU panel: saved sliders are forgotten (no re-apply at start).
+- Gradient and Zone Test send each frame twice on Strix - the direct-mode init handshake can swallow the first, leaving keyboard or lightbar dark until the next repaint.
+- Lid logo controls now appear on Advantage Edition (G513QY/G713QY), which have the LED but never report the logo capability bit.
+- Keyboard RGB capability probe no longer skipped when `skip_aura` is set - that flag suppresses applying lighting, not detecting hardware.
+- XG Mobile: dock id 0x1C28 recognised, and a 0xE6 command follows the handshake so pushed LED state is not ignored.
+- dGPU mode switches wait up to 5s for the async performance-mode pipeline before touching `dgpu_disable`, so fan-curve/PPT EC writes cannot interleave with the 30-60s EC-blocking toggle.
+- Battery header no longer shows phantom sub-1.5W discharge when full and plugged in.
+- Rainbow aura mode hidden on non-Strix keyboards, where basic and LampArray-era firmware ignores or garbles it.
+- Model lists synced: TP3407 OLED, G835L/G635L miniled init, FX507Z fan-curve-with-power-limits (was FX507ZV only), GU605CR sleep reset, GU405/GU606/GA403GM dynamic boost ranges.
+
+### Changed
+
+- AMD SMU power/temp tuning shells out to the bundled `ryzenadj` instead of RyzenAdj code compiled into gpu-helper (`ryzen-info`/`ryzen-probe`/`ryzen-set` and `vendor/gpu-helper/ryzen/` removed). Supported params and current limits come from one `ryzenadj -i` read; the Fans window applies all sliders in one batch, clamping to Ryzen Controller bounds, seeding unset sliders from its defaults, persisting and re-applying at start, hiding params the SMU reports unsupported.
+- Avalonia 12.1.0 -> 12.1.1.
+
+## v1.0.88 (2026-07-25)
+
+### Changed
+
+- NixOS: `ghelper` builds from source via `buildDotnetModule` (Native AOT) instead of wrapping a prebuilt `dist/` binary, so `nix build .#ghelper` no longer needs `./build.sh` first. Adds a `deps.json` NuGet lockfile, exposes `ghelper-audio` and `wlr-randr` as their own packages, and substitutes `/bin/sh` and the version placeholder in the udev rules (#159, thanks @localcc).
+
 ## v1.0.87 (2026-07-13)
 
 ### Added

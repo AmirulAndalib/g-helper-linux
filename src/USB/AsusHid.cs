@@ -31,7 +31,9 @@ public static class AsusHid
     {
         0x1A30, 0x1854, 0x1869, 0x1866, 0x19B6, 0x1822, 0x1837,
         0x184A, 0x183D, 0x8502, 0x1807, 0x17E0, 0x1ABE,
-        0x1B4C, 0x1B6E, 0x1B2C, 0x8854, 0x1CE7
+        0x1B4C, 0x1B6E, 0x1B2C, 0x8854, 0x1CE7, 0x1BF2,
+        // Zenbook Duo detachable keyboards (UX8407)
+        0x1CD7, 0x1CD8
     };
 
     /// <summary>
@@ -44,6 +46,11 @@ public static class AsusHid
     /// when callers don't specify a PID filter (preserves pre-split behaviour).
     /// </summary>
     public static readonly int[] ALL_PIDS = MAIN_AURA_PIDS.Concat(REAR_LIGHT_PIDS).ToArray();
+
+    /// <summary>
+    /// Serializes all ASUS HID traffic (Aura, input, Slash). Some models expose
+    /// </summary>
+    public static readonly object HidLock = new();
 
     private static HidStream? _auraStream;
     private static int _auraFeatLen;
@@ -205,6 +212,12 @@ public static class AsusHid
     /// <param name="pids">Optional PID filter, see <see cref="FindDevices"/>.</param>
     public static void WriteInput(byte[] data, string? log = "USB", int[]? pids = null)
     {
+        lock (HidLock)
+            WriteInputLocked(data, log, pids);
+    }
+
+    private static void WriteInputLocked(byte[] data, string? log, int[]? pids)
+    {
         // Try HidSharp (USB) first
         bool wroteAny = false;
         foreach (var device in FindDevices(INPUT_ID, pids))
@@ -247,6 +260,12 @@ public static class AsusHid
     /// </summary>
     /// <param name="pids">Optional PID filter, see <see cref="FindDevices"/>.</param>
     public static void Write(List<byte[]> dataList, string? log = "USB", int[]? pids = null)
+    {
+        lock (HidLock)
+            WriteLocked(dataList, log, pids);
+    }
+
+    private static void WriteLocked(List<byte[]> dataList, string? log, int[]? pids)
     {
         bool wroteToAny = false;
 
@@ -317,6 +336,12 @@ public static class AsusHid
     /// (typically 64 bytes for AURA endpoints) before submission.</para>
     /// </summary>
     public static void SetFeatureAura(byte[] data, bool retry = true)
+    {
+        lock (HidLock)
+            SetFeatureAuraLocked(data, retry);
+    }
+
+    private static void SetFeatureAuraLocked(byte[] data, bool retry)
     {
         // I2C-HID path: HidrawHelper.WriteAll already uses HIDIOCSFEATURE
         if (UsingI2cHidraw)

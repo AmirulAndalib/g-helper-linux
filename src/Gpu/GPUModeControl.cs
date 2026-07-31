@@ -246,6 +246,10 @@ public class GPUModeControl
         try
         {
             Logger.WriteLine($"GPUModeControl: RequestModeSwitch → {target}");
+
+            // Let pending fan/PPT EC writes settle before dgpu_disable
+            App.Mode?.WaitForApply();
+
             var result = ComputeAndExecute(target);
 
             // Sync the on-disk persistent marker with the current mode.
@@ -373,6 +377,7 @@ public class GPUModeControl
 
             // Driver released - now write dgpu_disable=1 (should be fast)
             Logger.WriteLine("GPUModeControl: driver released, writing dgpu_disable=1");
+            DropDgpuPciNodes();
             _wmi.SetGpuEco(true);
 
             // Verify
@@ -1338,6 +1343,80 @@ public class GPUModeControl
         }
     }
 
+    /// <summary>True once the nvidia driver actually owns the graphics function.</summary>
+    private static bool IsNvidiaBound(string gfxBdf)
+        => Directory.Exists(TestPathPrefix + $"/sys/bus/pci/drivers/nvidia/{gfxBdf}");
+
+    private const int NvidiaLoadAttempts = 3;
+    private const int NvidiaLoadSettleMs = 4000;
+
+    /// <summary>
+    /// modprobe nvidia and confirm it bound. A GPU whose rail is still
+    /// settling answers config space but not MMIO, so NVRM reports the device
+    /// "fell off the bus", probe returns -1 and module init fails with ENODEV.
+    /// The module then unloads itself, so /sys/bus/pci/drivers/nvidia never
+    /// exists and the pci-bind fallback cannot work either. Re-enumerate the
+    /// device and retry instead of reporting a success that never happened.
+    /// </summary>
+    private static bool LoadNvidiaWithRetry(string gfxBdf)
+    {
+        for (int attempt = 1; attempt <= NvidiaLoadAttempts; attempt++)
+        {
+            SysfsHelper.RunSudoOrPkexec(SysfsHelper.GpuHelperPath,
+                new[] { "modprobe", "nvidia" }, sudoTimeoutMs: 10000);
+
+            // A device that never left the bus is not re-probed by modprobe
+            // alone - bind it explicitly.
+            EnsureDgpuFunctionsBound(gfxBdf, isAmd: false);
+
+            if (IsNvidiaBound(gfxBdf))
+            {
+                Logger.WriteLine($"GPUModeControl: nvidia bound to {gfxBdf} on attempt {attempt}");
+                return true;
+            }
+
+            if (attempt == NvidiaLoadAttempts)
+                break;
+
+            Logger.WriteLine($"GPUModeControl: nvidia probe failed (attempt {attempt}/{NvidiaLoadAttempts}) - re-enumerating");
+            Thread.Sleep(NvidiaLoadSettleMs);
+
+            if (attempt == 1)
+            {
+                // Cheap retry: drop just the graphics function and re-add it.
+                WakeDgpuBridge();
+                RunPciRemove(gfxBdf);
+                TryPowerOnDgpuSlot();
+                SysfsHelper.WriteAttribute("/sys/bus/pci/rescan", "1");
+            }
+            else
+            {
+                // A root port left in D3cold enumerates the dGPU from stale
+                // config space with the link still down, so config reads answer
+                // but MMIO returns all-ones. Only a full re-enumeration of the
+                // hierarchy retrains the link.
+                ResetDgpuBridge();
+            }
+
+            WaitForDgpuNode(6000);
+        }
+        return false;
+    }
+
+    /// <summary>Poll for the dGPU node without running the escalation ladder.</summary>
+    private static bool WaitForDgpuNode(int timeoutMs)
+    {
+        int waited = 0;
+        while (waited < timeoutMs)
+        {
+            if (FindDgpuPciDevice() != null)
+                return true;
+            Thread.Sleep(500);
+            waited += 500;
+        }
+        return false;
+    }
+
     private GpuSwitchResult ExecuteEnableDgpu()
     {
         Logger.WriteLine("GPUModeControl: enabling dGPU (dgpu_disable=0) - always safe");
@@ -1367,6 +1446,7 @@ public class GPUModeControl
             if (!present)
             {
                 Logger.WriteLine("GPUModeControl: dGPU did not re-appear after rescan - reboot likely required; skipping daemon restart");
+                NVidia.GpuQueryGate.Hold("dGPU did not re-appear");
                 return GpuSwitchResult.DgpuReenableFailed;
             }
 
@@ -1385,12 +1465,12 @@ public class GPUModeControl
             else
             {
                 Logger.WriteLine("GPUModeControl: nvidia dGPU present - loading nvidia");
-                SysfsHelper.RunSudoOrPkexec(SysfsHelper.GpuHelperPath, new[] { "modprobe", "nvidia" }, sudoTimeoutMs: 10000);
-
-                // Recovery: a device that never left the bus (failed Eco release)
-                // is not re-probed by modprobe alone - bind it explicitly.
-                if (dgpuDev != null)
-                    EnsureDgpuFunctionsBound(dgpuDev.Value.bdf, isAmd: false);
+                if (dgpuDev != null && !LoadNvidiaWithRetry(dgpuDev.Value.bdf))
+                {
+                    Logger.WriteLine("GPUModeControl: nvidia never bound to the dGPU - reboot required");
+                    NVidia.GpuQueryGate.Hold("dGPU re-enable failed");
+                    return GpuSwitchResult.DgpuReenableFailed;
+                }
 
                 // Eco transition stopped these daemons; Standard must restart them
                 // (supergfxctl actions.rs:enable_nvidia_persistenced + enable_nvidia_powerd).
@@ -1412,6 +1492,7 @@ public class GPUModeControl
             // holder kill (e.g. powerdevil pinned the nvidia I2C bus).
             RestartStoppedHolderServices();
             Logger.WriteLine("GPUModeControl: dGPU enabled");
+            NVidia.LinuxNvidiaGpuControl.ResetSmiBreaker();
             NVidia.GpuQueryGate.Resume();
             // Re-apply (or reset) the current mode's GPU tuning now the dGPU is
             // back, so persistence survives an Eco->Standard toggle.
@@ -1931,6 +2012,7 @@ public class GPUModeControl
         Logger.WriteLine("GPUModeControl: dGPU driver idle/absent - writing dgpu_disable=1");
         try
         {
+            DropDgpuPciNodes();
             _wmi.SetGpuEco(true);
 
             // Verify the write took effect
@@ -3200,6 +3282,24 @@ public class GPUModeControl
             Logger.WriteLine($"GPUModeControl: PCI-removing {node}");
             RunPciRemove(node);
         }
+    }
+
+    /// <summary>
+    /// Drop the dGPU PCI nodes right before writing dgpu_disable=1.
+    /// Firmware cuts the rail but leaves the devices enumerated, and their
+    /// sysfs attributes are kernel-cached, so the next Standard switch sees a
+    /// live-looking node, loads nvidia against a dead GPU and gets
+    /// "fell off the bus". Removing first makes re-appearance after rescan a
+    /// real signal. Best-effort - never blocks the Eco write.
+    /// </summary>
+    private void DropDgpuPciNodes()
+    {
+        if (IsTestMode)
+            return;
+        try
+        { PciRemoveDgpuFunctions(); }
+        catch (Exception ex)
+        { Logger.WriteLine($"GPUModeControl: DropDgpuPciNodes failed: {ex.Message}"); }
     }
 
     /// <summary>

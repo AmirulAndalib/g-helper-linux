@@ -106,17 +106,6 @@
  *       cache=<mv>") so the caller can verify the offset took effect (a
  *       firmware-locked mailbox reads back 0). Non-persistent; resets on reboot.
  *
- *   ryzen-info
- *       Read AMD Ryzen SMU PM table (power, temperature, current, clock values)
- *       via the vendored RyzenAdj library. Output: key=value lines.
- *
- *   ryzen-probe
- *       Probe which Ryzen SMU parameters are supported on this CPU. Output:
- *       one key per line for each supported parameter.
- *
- *   ryzen-set <param> <value>
- *       Set a Ryzen SMU power/temperature/current limit. param is the parameter
- *       name (e.g. stapm-limit), value is milliwatts or degrees.
  *
  * Sudoers (installed by install.sh, bare path = any subcommand/args):
  *   (root) NOPASSWD: /opt/ghelper/gpu-helper
@@ -126,7 +115,6 @@
  */
 
 #include "gpu-helper.h"
-#include "ryzen_ops.h"
 
 /* ---------- shared utilities ---------- */
 
@@ -226,12 +214,6 @@ int main(int argc, char **argv)
             return do_msr_uv(argc, argv);
         if (strcmp(argv[1], "lenovo-flip-to-start") == 0)
             return do_lenovo_flip_to_start(argc, argv);
-        if (strcmp(argv[1], "ryzen-info") == 0)
-            return ryzen_do_info();
-        if (strcmp(argv[1], "ryzen-probe") == 0)
-            return ryzen_do_probe();
-        if (strcmp(argv[1], "ryzen-set") == 0 && argc >= 4)
-            return ryzen_do_set(argv[2], (unsigned int)strtoul(argv[3], NULL, 10));
     }
 
     /* Backward-compatible default: bare numeric arg is the legacy skip_pid. */

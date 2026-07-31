@@ -68,6 +68,7 @@ public static class ChineseSimplified
         ["color_primary"] = "主色",
         ["color_secondary"] = "辅色",
         ["pick_color"] = "选择颜色",
+        ["aura_random_color"] = "随机",
         ["hex_label"] = "Hex：",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class ChineseSimplified
         ["action_miniled"] = "MiniLED 切换",
         ["action_camera"] = "摄像头切换",
         ["action_touchpad"] = "触控板切换",
+        ["mkey_bindings_header"] = "M 键",
+        ["mkey_default"] = "默认",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 键",
@@ -876,6 +887,7 @@ public static class ChineseSimplified
         ["sysfiles_diff_close"] = "关闭",
         ["sysfiles_remove"] = "移除",
         ["sysfiles_name_gpu_helper"] = "GPU 特权助手",
+        ["sysfiles_name_ryzenadj"] = "AMD 电源调节工具 (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU 阻止助手脚本",
         ["sysfiles_name_gpu_boot_script"] = "GPU 启动脚本",
         ["sysfiles_name_gpu_boot_service"] = "GPU 启动服务 (systemd)",

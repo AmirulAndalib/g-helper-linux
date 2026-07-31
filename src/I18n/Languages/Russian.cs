@@ -65,6 +65,7 @@ public static class Russian
         ["color_primary"] = "Основной цвет",
         ["color_secondary"] = "Дополнительный цвет",
         ["pick_color"] = "Выбрать цвет",
+        ["aura_random_color"] = "Случайный",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Russian
         ["action_miniled"] = "Вкл/выкл MiniLED",
         ["action_camera"] = "Вкл/выкл камеру",
         ["action_touchpad"] = "Вкл/выкл тачпад",
+        ["mkey_bindings_header"] = "Клавиши M",
+        ["mkey_default"] = "По умолчанию",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Клавиша ROG / M5",
@@ -873,6 +884,7 @@ public static class Russian
         ["sysfiles_diff_close"] = "Закрыть",
         ["sysfiles_remove"] = "Убрать",
         ["sysfiles_name_gpu_helper"] = "Привилегированный помощник GPU",
+        ["sysfiles_name_ryzenadj"] = "Инструмент настройки питания AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Скрипт блокировки GPU",
         ["sysfiles_name_gpu_boot_script"] = "Скрипт загрузки GPU",
         ["sysfiles_name_gpu_boot_service"] = "Служба загрузки GPU (systemd)",

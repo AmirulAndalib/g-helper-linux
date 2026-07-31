@@ -102,6 +102,17 @@ public static class NixOS
     }
 
     /// <summary>
+    /// Resolve ryzenadj path on NixOS. The nixos/ module adds the
+    /// nixpkgs ryzenadj to PATH. Returns null if not found.
+    /// </summary>
+    public static string? ResolveRyzenadj()
+    {
+        if (!IsNixOS)
+            return null;
+        return WhichCached("ryzenadj", ref _ryzenadj);
+    }
+
+    /// <summary>
     /// Stable launcher exec for .desktop files on NixOS. Nix store
     /// paths change on every rebuild so autostart entries that embed
     /// them break. Return "ghelper" (on PATH via the module) instead.
@@ -216,8 +227,10 @@ public static class NixOS
     // Cached PATH lookups
     private static string? _gpuHelper;
     private static string? _gpuBlockHelper;
+    private static string? _ryzenadj;
     private static bool _gpuHelperResolved;
     private static bool _gpuBlockHelperResolved;
+    private static bool _ryzenadjResolved;
 
     private static string? WhichCached(string name, ref string? cache)
     {
@@ -226,6 +239,8 @@ public static class NixOS
         if (name == "gpu-helper" && _gpuHelperResolved)
             return cache;
         if (name == "gpu-block-helper.sh" && _gpuBlockHelperResolved)
+            return cache;
+        if (name == "ryzenadj" && _ryzenadjResolved)
             return cache;
 
         var which = SysfsHelper.RunCommandWithTimeout("which", name, 2000);
@@ -246,6 +261,8 @@ public static class NixOS
             _gpuHelperResolved = true;
         if (name == "gpu-block-helper.sh")
             _gpuBlockHelperResolved = true;
+        if (name == "ryzenadj")
+            _ryzenadjResolved = true;
         return result;
     }
 }

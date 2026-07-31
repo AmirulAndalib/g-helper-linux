@@ -68,6 +68,7 @@ public static class Arabic
         ["color_primary"] = "اللون الأساسي",
         ["color_secondary"] = "اللون الثانوي",
         ["pick_color"] = "اختيار اللون",
+        ["aura_random_color"] = "عشوائي",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Arabic
         ["action_miniled"] = "تبديل MiniLED",
         ["action_camera"] = "تبديل الكاميرا",
         ["action_touchpad"] = "تبديل لوحة اللمس",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "مفتاح ROG / M5",
@@ -876,6 +887,7 @@ public static class Arabic
         ["sysfiles_diff_close"] = "إغلاق",
         ["sysfiles_remove"] = "إزالة",
         ["sysfiles_name_gpu_helper"] = "مساعد GPU المميز",
+        ["sysfiles_name_ryzenadj"] = "أداة ضبط طاقة AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "سكربت مساعد حظر GPU",
         ["sysfiles_name_gpu_boot_script"] = "سكربت إقلاع GPU",
         ["sysfiles_name_gpu_boot_service"] = "خدمة إقلاع GPU (systemd)",

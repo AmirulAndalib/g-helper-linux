@@ -1491,6 +1491,8 @@ public partial class MainWindow : Window
         Aura.ApplyConfiguredBrightness("Startup");
         Aura.ApplyAura();
 
+        Task.Run(GHelper.Linux.Input.MKeyControl.ApplyAll);
+
         return true;
     }
 
@@ -1781,7 +1783,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowColorPicker(string configKey, byte initR, byte initG, byte initB, Action<byte, byte, byte> onColorSet)
     {
-        ColorPicker.Show(this, initR, initG, initB, onColorSet);
+        bool allowRandom = configKey == "aura_color" && Aura.HasRandomColor();
+        ColorPicker.Show(this, initR, initG, initB, onColorSet, allowRandom);
     }
 
     private void ApplyAuraAsync()
@@ -1923,6 +1926,9 @@ public partial class MainWindow : Window
             int level = power.GetBatteryPercentage();
             bool acPlugged = power.IsOnAcPower();
             int drainMw = power.GetBatteryDrainRate();
+
+            if (Math.Abs(drainMw) < 1500)
+                drainMw = 0;
 
             // Discharge/charge rate in battery header right column
             if (drainMw != 0)

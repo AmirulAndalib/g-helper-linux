@@ -68,6 +68,7 @@ public static class Korean
         ["color_primary"] = "기본 색상",
         ["color_secondary"] = "보조 색상",
         ["pick_color"] = "색상 선택",
+        ["aura_random_color"] = "무작위",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Korean
         ["action_miniled"] = "MiniLED 전환",
         ["action_camera"] = "카메라 전환",
         ["action_touchpad"] = "터치패드 전환",
+        ["mkey_bindings_header"] = "M 키",
+        ["mkey_default"] = "기본값",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 키",
@@ -876,6 +887,7 @@ public static class Korean
         ["sysfiles_diff_close"] = "닫기",
         ["sysfiles_remove"] = "제거",
         ["sysfiles_name_gpu_helper"] = "GPU 권한 도우미",
+        ["sysfiles_name_ryzenadj"] = "AMD 전력 튜닝 도구 (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU 차단 도우미 스크립트",
         ["sysfiles_name_gpu_boot_script"] = "GPU 부팅 스크립트",
         ["sysfiles_name_gpu_boot_service"] = "GPU 부팅 서비스 (systemd)",

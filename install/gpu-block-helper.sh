@@ -1,7 +1,7 @@
 #!/bin/bash
 # G-Helper GPU block helper.
 # Manages GPU block artifacts (modprobe + udev) for Eco mode transitions.
-# Called by ghelper via sudo (NOPASSWD via /etc/sudoers.d/ghelper).
+# Called by ghelper via sudo (NOPASSWD via /etc/sudoers.d/zz-ghelper-gpu).
 #
 # Usage:
 #   sudo gpu-block-helper.sh write <mode> [backend]

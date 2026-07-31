@@ -343,6 +343,7 @@ public class AllyControl
             if (init)
             {
                 WakeUp();
+                DisableXBoxController(false);
             }
 
             // Set the mode byte.
@@ -368,8 +369,7 @@ public class AllyControl
             if (init && Helpers.AppConfig.Is("controller_disabled"))
             {
                 Thread.Sleep(500);
-                DisableXBoxController(false);  // toggle off-then-on so the EC
-                DisableXBoxController(true);   // re-binds the underlying input
+                DisableXBoxController(true);
             }
         });
     }

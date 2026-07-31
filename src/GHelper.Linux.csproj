@@ -41,12 +41,12 @@
 
   <!-- Avalonia UI framework -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
-    <PackageReference Include="Avalonia.X11" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Skia" Version="12.1.0" />
-    <PackageReference Include="Avalonia.HarfBuzz" Version="12.1.0" />
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.X11" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.HarfBuzz" Version="12.1.1" />
 
     <!-- HID communication (cross-platform, used by G-Helper) -->
     <PackageReference Include="HidSharpCore" Version="1.3.0" />
@@ -97,6 +97,9 @@
            Built by build.sh from audio-helper/. Provides the virtual G-Helper Microphone source. -->
       <EmbeddedResource Include="../build/embedded/ghelper-audio" Condition="Exists('../build/embedded/ghelper-audio')" LogicalName="ghelper-audio" />
       <EmbeddedResource Include="../vendor/gpu-helper/gpu-helper" LogicalName="gpu-helper" />
+      <!-- ryzenadj: upstream RyzenAdj CLI (static musl build from GitHub
+           releases, vendored in git). Updated via scripts/update-ryzenadj.sh. -->
+      <EmbeddedResource Include="../vendor/ryzenadj/ryzenadj" Condition="Exists('../vendor/ryzenadj/ryzenadj')" LogicalName="ryzenadj" />
     </ItemGroup>
   </Target>
 

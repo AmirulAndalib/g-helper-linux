@@ -13,8 +13,9 @@ namespace GHelper.Linux.Gpu.NVidia;
 public static class GpuQueryGate
 {
     private static DateTime _pausedUntilUtc = DateTime.MinValue;
+    private static bool _held;
 
-    public static bool IsPaused => DateTime.UtcNow < _pausedUntilUtc;
+    public static bool IsPaused => _held || DateTime.UtcNow < _pausedUntilUtc;
 
     public static void Pause(TimeSpan duration, string reason)
     {
@@ -22,8 +23,21 @@ public static class GpuQueryGate
         Logger.WriteLine($"GpuQueryGate: GPU queries paused for {duration.TotalSeconds:0}s ({reason})");
     }
 
+    /// <summary>
+    /// Pause with no expiry, for a dGPU that failed to re-initialise. Every
+    /// query against it spawns an nvidia-smi that blocks until its timeout, so
+    /// a timed pause just resumes the spam. Cleared by Resume() on the next
+    /// successful mode switch.
+    /// </summary>
+    public static void Hold(string reason)
+    {
+        _held = true;
+        Logger.WriteLine($"GpuQueryGate: GPU queries held ({reason})");
+    }
+
     public static void Resume()
     {
+        _held = false;
         _pausedUntilUtc = DateTime.MinValue;
         Logger.WriteLine("GpuQueryGate: GPU queries resumed");
     }

@@ -65,6 +65,7 @@ public static class Turkish
         ["color_primary"] = "Ana renk",
         ["color_secondary"] = "İkincil renk",
         ["pick_color"] = "Renk Seç",
+        ["aura_random_color"] = "Rastgele",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Turkish
         ["action_miniled"] = "MiniLED'i Aç/Kapat",
         ["action_camera"] = "Kamerayı Aç/Kapat",
         ["action_touchpad"] = "Dokunmatik Yüzeyi Aç/Kapat",
+        ["mkey_bindings_header"] = "M Tuşları",
+        ["mkey_default"] = "Varsayılan",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 Tuşu",
@@ -873,6 +884,7 @@ public static class Turkish
         ["sysfiles_diff_close"] = "Kapat",
         ["sysfiles_remove"] = "Kaldır",
         ["sysfiles_name_gpu_helper"] = "Ayrıcalıklı GPU yardımcısı",
+        ["sysfiles_name_ryzenadj"] = "AMD güç ayarlama aracı (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU engelleme yardımcı betiği",
         ["sysfiles_name_gpu_boot_script"] = "GPU önyükleme betiği",
         ["sysfiles_name_gpu_boot_service"] = "GPU önyükleme hizmeti (systemd)",

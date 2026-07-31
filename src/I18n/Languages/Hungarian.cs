@@ -65,6 +65,7 @@ public static class Hungarian
         ["color_primary"] = "Elsődleges szín",
         ["color_secondary"] = "Másodlagos szín",
         ["pick_color"] = "Szín kiválasztása",
+        ["aura_random_color"] = "Véletlenszerű",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Hungarian
         ["action_miniled"] = "MiniLED váltása",
         ["action_camera"] = "Kamera váltása",
         ["action_touchpad"] = "Érintőpad váltása",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 gomb",
@@ -873,6 +884,7 @@ public static class Hungarian
         ["sysfiles_diff_close"] = "Bezárás",
         ["sysfiles_remove"] = "Törlés",
         ["sysfiles_name_gpu_helper"] = "Privilegizált GPU-segéd",
+        ["sysfiles_name_ryzenadj"] = "AMD energiahangoló eszköz (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU-blokkoló segédszkript",
         ["sysfiles_name_gpu_boot_script"] = "GPU-indítószkript",
         ["sysfiles_name_gpu_boot_service"] = "GPU-indítószolgáltatás (systemd)",

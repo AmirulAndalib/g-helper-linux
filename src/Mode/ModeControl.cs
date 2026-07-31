@@ -80,6 +80,18 @@ public class ModeControl
     {
     }
 
+    private static Task _modeTask = Task.CompletedTask;
+
+    /// <summary>Blocks until the async mode-apply pipeline finishes (max 5s).
+    /// GPU switches call this so dgpu_disable writes do not hit the EC while
+    /// fan/PPT writes are in flight (upstream bab71419).</summary>
+    public void WaitForApply()
+    {
+        try
+        { _modeTask.Wait(5000); }
+        catch { }
+    }
+
     /// <summary>
     /// Set performance mode and apply all associated settings.
     /// </summary>
@@ -184,7 +196,7 @@ public class ModeControl
         //   reset curves
         // The final write ensures curves are authoritative after all other
         // EC interactions settle.
-        Task.Run(async () =>
+        _modeTask = Task.Run(async () =>
         {
             // If reset was needed, wait for firmware to process the bounce
             if (needsReset)

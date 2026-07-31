@@ -68,6 +68,7 @@ public static class Danish
         ["color_primary"] = "Primær farve",
         ["color_secondary"] = "Sekundær farve",
         ["pick_color"] = "Vælg farve",
+        ["aura_random_color"] = "Tilfældig",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Danish
         ["action_miniled"] = "Skift MiniLED",
         ["action_camera"] = "Skift kamera",
         ["action_touchpad"] = "Skift pegefelt",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5-tast",
@@ -876,6 +887,7 @@ public static class Danish
         ["sysfiles_diff_close"] = "Luk",
         ["sysfiles_remove"] = "Fjern",
         ["sysfiles_name_gpu_helper"] = "Privilegeret GPU-hjælper",
+        ["sysfiles_name_ryzenadj"] = "AMD-strømjusteringsværktøj (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU-blokeringshjælpescript",
         ["sysfiles_name_gpu_boot_script"] = "GPU-opstartsscript",
         ["sysfiles_name_gpu_boot_service"] = "GPU-opstartstjeneste (systemd)",

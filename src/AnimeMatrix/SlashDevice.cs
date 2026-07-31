@@ -198,16 +198,22 @@ public class SlashDevice : Device
     /// <summary>Sends the wake-up handshake sequence (3 packets).</summary>
     public void WakeUp()
     {
-        Set(CreatePacket(Encoding.ASCII.GetBytes("ASUS Tech.Inc.")), "SlashWakeUp");
-        Set(CreatePacket([0xC2]), "SlashWakeUp");
-        Set(CreatePacket([0xD1, 0x01, 0x00, 0x01]), "SlashWakeUp");
+        lock (USB.AsusHid.HidLock)
+        {
+            Set(CreatePacket(Encoding.ASCII.GetBytes("ASUS Tech.Inc.")), "SlashWakeUp");
+            Set(CreatePacket([0xC2]), "SlashWakeUp");
+            Set(CreatePacket([0xD1, 0x01, 0x00, 0x01]), "SlashWakeUp");
+        }
     }
 
     /// <summary>Sends the init sequence (2 packets). Call once after boot.</summary>
     public void Init()
     {
-        foreach (var command in CommandInit())
-            Set(CreatePacket(command), "SlashInit");
+        lock (USB.AsusHid.HidLock)
+        {
+            foreach (var command in CommandInit())
+                Set(CreatePacket(command), "SlashInit");
+        }
     }
 
     /// <summary>Enables or disables the Slash LED bar.</summary>
@@ -236,8 +242,11 @@ public class SlashDevice : Device
             modeByte = 0x00;
         }
 
-        Set(CreatePacket([0xD2, 0x03, 0x00, 0x0C]), "SlashMode");
-        Set(CreatePacket(CommandSetMode(modeByte)), "SlashMode");
+        lock (USB.AsusHid.HidLock)
+        {
+            Set(CreatePacket([0xD2, 0x03, 0x00, 0x0C]), "SlashMode");
+            Set(CreatePacket(CommandSetMode(modeByte)), "SlashMode");
+        }
     }
 
     /// <summary>Sets enabled state, brightness (0-3), and animation interval (0-5).</summary>
@@ -263,17 +272,23 @@ public class SlashDevice : Device
     /// <summary>Enables or disables the sleep animation.</summary>
     public void SetSleepActive(bool status)
     {
-        Set(CreatePacket([0xD2, 0x02, 0x01, 0x08, 0xA1]), "SlashSleepInit");
-        Set(CreatePacket(CommandShowOnSleep(status)), $"SlashSleep {status}");
+        lock (USB.AsusHid.HidLock)
+        {
+            Set(CreatePacket([0xD2, 0x02, 0x01, 0x08, 0xA1]), "SlashSleepInit");
+            Set(CreatePacket(CommandShowOnSleep(status)), $"SlashSleep {status}");
+        }
     }
 
     /// <summary>Sends a custom LED pattern with setup preamble.</summary>
     public void SetCustom(byte[] data, string? log = "Static Data")
     {
-        Set(CreatePacket([0xD2, 0x02, 0x01, 0x08, 0xAC]), null);
-        Set(CreatePacket([0xD3, 0x03, 0x01, 0x08, 0xAC, 0xFF, 0xFF, 0x01, 0x05, 0xFF, 0xFF]), null);
-        Set(CreatePacket([0xD4, 0x00, 0x00, 0x01, 0xAC]), null);
-        ContinueCustom(data, log);
+        lock (USB.AsusHid.HidLock)
+        {
+            Set(CreatePacket([0xD2, 0x02, 0x01, 0x08, 0xAC]), null);
+            Set(CreatePacket([0xD3, 0x03, 0x01, 0x08, 0xAC, 0xFF, 0xFF, 0x01, 0x05, 0xFF, 0xFF]), null);
+            Set(CreatePacket([0xD4, 0x00, 0x00, 0x01, 0xAC]), null);
+            ContinueCustom(data, log);
+        }
     }
 
     /// <summary>Sends a custom data payload without setup. Used for streaming updates.</summary>
@@ -325,7 +340,8 @@ public class SlashDevice : Device
     /// <summary>Sends a packet with optional diagnostic logging.</summary>
     public void Set(Packet packet, string? log)
     {
-        base.Set(packet);
+        lock (USB.AsusHid.HidLock)
+            base.Set(packet);
         if (log is not null)
         {
             int len = Math.Min(24, packet.Data.Length);

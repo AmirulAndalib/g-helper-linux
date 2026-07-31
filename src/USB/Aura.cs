@@ -186,6 +186,9 @@ public static class Aura
     /// <summary>Probed: device has a front lightbar.</summary>
     public static bool HasLightbar { get; private set; }
 
+    /// <summary>Pre-2021 Strix/Scar firmware (feat1==0 probe). Direct-mode</summary>
+    public static bool IsOldStrix { get; private set; }
+
     /// <summary>Probed: device has rear-glow (rear panel light, e.g. Strix Scar / Z13 lid).</summary>
     public static bool HasRearglow { get; private set; }
 
@@ -246,6 +249,14 @@ public static class Aura
     {
         return (_mode == AuraMode.AuraBreathe || _mode == AuraMode.Gradient)
             && (!_isACPI || AppConfig.IsDynamicLightingOnly());
+    }
+
+    /// <summary>Whether the current mode treats black as firmware-random color
+    /// (upstream #5608). Picker shows a Random button for these.</summary>
+    public static bool HasRandomColor()
+    {
+        return _mode == AuraMode.Star || _mode == AuraMode.Highlight
+            || _mode == AuraMode.Laser || _mode == AuraMode.Ripple;
     }
 
     /// <summary>Whether the current mode uses Color1 at all. Rainbow/ColorCycle don't,
@@ -309,7 +320,7 @@ public static class Aura
 
         // Detection-driven build. When BacklightType == Unknown (probe failed
         // or not run), perKey & multiZone are both false, so the device gets
-        // the basic mode set: Static, Breathe, ColorCycle, [Rainbow], Strobe,
+        // the basic mode set: Static, Breathe, ColorCycle, Strobe,
         // Heatmap, GpuMode, Battery.
         bool perKey = BacklightType == AuraBacklightType.PerKey;
         bool multiZone = BacklightType == AuraBacklightType.MultiZone;
@@ -323,8 +334,9 @@ public static class Aura
             [AuraMode.AuraColorCycle] = Labels.Get("aura_color_cycle"),
         };
 
-        // Rainbow not supported on TUF/ACPI sysfs path
-        if (!_isACPI)
+        // Rainbow only works on Strix keyboards; TUF/ACPI and LampArray-era
+        // basic firmware ignore or garble it (upstream e9b93159)
+        if (isStrixKb && !_isACPI)
             modes[AuraMode.AuraRainbow] = Labels.Get("aura_rainbow");
 
         if (perKey)
@@ -623,10 +635,11 @@ public static class Aura
             AppConfig.Set("backlight_type", typeByte);
 
             // Old Strix/Scar report feat1==0; assume logo+lightbar. (#5590)
-            if (feat1 == 0 && AppConfig.IsStrix())
+            IsOldStrix = feat1 == 0 && AppConfig.IsStrix();
+            if (IsOldStrix)
                 feat1 = FEAT1_LOGO | FEAT1_LIGHTBAR;
 
-            HasLogo = (feat1 & FEAT1_LOGO) != 0 || AppConfig.IsZ13();
+            HasLogo = (feat1 & FEAT1_LOGO) != 0 || AppConfig.IsLidLogo();
             HasLightbar = (feat1 & FEAT1_LIGHTBAR) != 0;
             // VCUT bit = rearglow on old Scar. (#5590)
             HasRearglow = (feat1 & (FEAT1_REARGLOW | FEAT1_VCUT)) != 0 || AppConfig.IsZ13();
@@ -1041,6 +1054,12 @@ public static class Aura
 
         Logger.WriteLine($"ApplyAura: mode={Mode} speed={Speed} color=#{ColorR:X2}{ColorG:X2}{ColorB:X2} color2=#{Color2R:X2}{Color2G:X2}{Color2B:X2}");
 
+        // LampArray models: hand array to host or firmware depending on mode.
+        // While the async probe runs, skip; Probe() re-calls ApplyAura after.
+        AsusLampArray.SetMode(Mode);
+        if (AsusLampArray.Probing)
+            return;
+
         // Custom RGB modes - software-driven, dispatched to CustomRgb.
         // Stop the timer first so a previous mode's tick can't race a new selection.
         _customTimer.Stop();
@@ -1133,6 +1152,13 @@ public static class Aura
         if (!_backlight)
             return;
 
+        // LampArray models ignore legacy 0xBC direct writes
+        if (AsusLampArray.Available)
+        {
+            AsusLampArray.SetColor(r, g, b);
+            return;
+        }
+
         if (_isACPI)
         {
             var wmi = App.Wmi as GHelper.Linux.Platform.Linux.LinuxAsusWmi;
@@ -1175,9 +1201,9 @@ public static class Aura
             _initDirect = false;
             // Re-handshake with SetFeature + a small delay before the first
             // direct packet keeps the firmware from dropping the next frame
-            // on cold-start. The trailing 0x01 byte enables direct-RGB mode
-            // (upstream commit 284ab9c7, fixes init on some models).
-            AsusHid.SetFeatureAura(new byte[] { AsusHid.AURA_ID, 0xBC, 1 });
+            // on cold-start. Trailing byte enables direct-RGB mode; ancient
+            // Strix firmware wants 0
+            AsusHid.SetFeatureAura(new byte[] { AsusHid.AURA_ID, 0xBC, (byte)(IsOldStrix ? 0 : 1) });
             Thread.Sleep(50);
         }
 
@@ -1202,6 +1228,13 @@ public static class Aura
         if (!_backlight)
             return;
 
+        // LampArray models ignore legacy 0xBC direct writes
+        if (AsusLampArray.Available)
+        {
+            AsusLampArray.SetColors(colors);
+            return;
+        }
+
         const byte keySet = 167;
         const byte ledCount = 178;
         const ushort mapSize = 3 * ledCount;
@@ -1222,8 +1255,9 @@ public static class Aura
         if (init || _initDirect)
         {
             _initDirect = false;
-            // SetFeature handshake instead of output write
-            AsusHid.SetFeatureAura(new byte[] { AsusHid.AURA_ID, 0xBC, 1 });
+            // SetFeature handshake instead of output write; ancient Strix
+            // firmware wants trailing 0
+            AsusHid.SetFeatureAura(new byte[] { AsusHid.AURA_ID, 0xBC, (byte)(IsOldStrix ? 0 : 1) });
             Thread.Sleep(50);
         }
 
@@ -1303,6 +1337,10 @@ public static class Aura
     public static void ApplyDirectLightbar(byte[] colors)
     {
         if (!_backlight)
+            return;
+
+        // LampArray path already paints the bar in SetColors
+        if (AsusLampArray.Available)
             return;
 
         var map = AppConfig.IsStrix4ZoneFlipped() ? Packet4ZoneFlipped : Packet4Zone;

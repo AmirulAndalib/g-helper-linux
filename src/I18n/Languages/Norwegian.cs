@@ -68,6 +68,7 @@ public static class Norwegian
         ["color_primary"] = "Primærfarge",
         ["color_secondary"] = "Sekundærfarge",
         ["pick_color"] = "Velg farge",
+        ["aura_random_color"] = "Tilfeldig",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Norwegian
         ["action_miniled"] = "Veksle MiniLED",
         ["action_camera"] = "Veksle kamera",
         ["action_touchpad"] = "Veksle styreplate",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5-tast",
@@ -876,6 +887,7 @@ public static class Norwegian
         ["sysfiles_diff_close"] = "Lukk",
         ["sysfiles_remove"] = "Fjern",
         ["sysfiles_name_gpu_helper"] = "Privilegert GPU-hjelper",
+        ["sysfiles_name_ryzenadj"] = "AMD-strømjusteringsverktøy (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU-blokkeringshjelpeskript",
         ["sysfiles_name_gpu_boot_script"] = "GPU-oppstartsskript",
         ["sysfiles_name_gpu_boot_service"] = "GPU-oppstartstjeneste (systemd)",

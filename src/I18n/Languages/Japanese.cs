@@ -68,6 +68,7 @@ public static class Japanese
         ["color_primary"] = "プライマリカラー",
         ["color_secondary"] = "セカンダリカラー",
         ["pick_color"] = "色を選択",
+        ["aura_random_color"] = "ランダム",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -225,6 +226,16 @@ public static class Japanese
         ["action_miniled"] = "MiniLED 切替",
         ["action_camera"] = "カメラ切替",
         ["action_touchpad"] = "タッチパッド切替",
+        ["mkey_bindings_header"] = "M キー",
+        ["mkey_default"] = "デフォルト",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 キー",
@@ -876,6 +887,7 @@ public static class Japanese
         ["sysfiles_diff_close"] = "閉じる",
         ["sysfiles_remove"] = "削除",
         ["sysfiles_name_gpu_helper"] = "GPU 特権ヘルパー",
+        ["sysfiles_name_ryzenadj"] = "AMD 電力調整ツール (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU ブロックヘルパースクリプト",
         ["sysfiles_name_gpu_boot_script"] = "GPU 起動スクリプト",
         ["sysfiles_name_gpu_boot_service"] = "GPU 起動サービス (systemd)",

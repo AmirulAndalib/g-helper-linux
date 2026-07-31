@@ -65,6 +65,7 @@ public static class Dutch
         ["color_primary"] = "Hoofdkleur",
         ["color_secondary"] = "Secundaire kleur",
         ["pick_color"] = "Kleur kiezen",
+        ["aura_random_color"] = "Willekeurig",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Dutch
         ["action_miniled"] = "MiniLED in-/uitschakelen",
         ["action_camera"] = "Camera in-/uitschakelen",
         ["action_touchpad"] = "Touchpad in-/uitschakelen",
+        ["mkey_bindings_header"] = "M-toetsen",
+        ["mkey_default"] = "Standaard",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5-toets",
@@ -873,6 +884,7 @@ public static class Dutch
         ["sysfiles_diff_close"] = "Sluiten",
         ["sysfiles_remove"] = "Verwijderen",
         ["sysfiles_name_gpu_helper"] = "Bevoorrechte GPU-helper",
+        ["sysfiles_name_ryzenadj"] = "AMD-energieafstemmingstool (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "GPU-blokkeerhulpscript",
         ["sysfiles_name_gpu_boot_script"] = "GPU-opstartscript",
         ["sysfiles_name_gpu_boot_service"] = "GPU-opstartservice (systemd)",

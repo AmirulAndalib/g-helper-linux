@@ -65,6 +65,7 @@ public static class PortugueseBR
         ["color_primary"] = "Cor principal",
         ["color_secondary"] = "Cor secundária",
         ["pick_color"] = "Escolher cor",
+        ["aura_random_color"] = "Aleatório",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class PortugueseBR
         ["action_miniled"] = "Ativar/desativar MiniLED",
         ["action_camera"] = "Ativar/desativar câmera",
         ["action_touchpad"] = "Ativar/desativar touchpad",
+        ["mkey_bindings_header"] = "Teclas M",
+        ["mkey_default"] = "Padrão",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Tecla ROG / M5",
@@ -873,6 +884,7 @@ public static class PortugueseBR
         ["sysfiles_diff_close"] = "Fechar",
         ["sysfiles_remove"] = "Remover",
         ["sysfiles_name_gpu_helper"] = "Auxiliar de GPU privilegiado",
+        ["sysfiles_name_ryzenadj"] = "Ferramenta de ajuste de energia AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Script auxiliar de bloqueio de GPU",
         ["sysfiles_name_gpu_boot_script"] = "Script de inicialização da GPU",
         ["sysfiles_name_gpu_boot_service"] = "Serviço de inicialização da GPU (systemd)",

@@ -65,6 +65,7 @@ public static class Vietnamese
         ["color_primary"] = "Màu chính",
         ["color_secondary"] = "Màu phụ",
         ["pick_color"] = "Chọn màu",
+        ["aura_random_color"] = "Ngẫu nhiên",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Vietnamese
         ["action_miniled"] = "Bật/tắt MiniLED",
         ["action_camera"] = "Bật/tắt Camera",
         ["action_touchpad"] = "Bật/tắt Bàn cảm ứng",
+        ["mkey_bindings_header"] = "M-Key Bindings",
+        ["mkey_default"] = "Default",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Phím ROG / M5",
@@ -873,6 +884,7 @@ public static class Vietnamese
         ["sysfiles_diff_close"] = "Đóng",
         ["sysfiles_remove"] = "Xóa",
         ["sysfiles_name_gpu_helper"] = "Trình trợ giúp GPU đặc quyền",
+        ["sysfiles_name_ryzenadj"] = "Công cụ tinh chỉnh nguồn AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Tập lệnh trợ giúp chặn GPU",
         ["sysfiles_name_gpu_boot_script"] = "Tập lệnh khởi động GPU",
         ["sysfiles_name_gpu_boot_service"] = "Dịch vụ khởi động GPU (systemd)",

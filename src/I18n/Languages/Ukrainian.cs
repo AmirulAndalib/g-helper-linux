@@ -65,6 +65,7 @@ public static class Ukrainian
         ["color_primary"] = "Основний колір",
         ["color_secondary"] = "Додатковий колір",
         ["pick_color"] = "Обрати колір",
+        ["aura_random_color"] = "Випадковий",
         ["hex_label"] = "Hex:",
 
         // BATTERY
@@ -222,6 +223,16 @@ public static class Ukrainian
         ["action_miniled"] = "Перемкнути MiniLED",
         ["action_camera"] = "Перемкнути камеру",
         ["action_touchpad"] = "Перемкнути тачпад",
+        ["mkey_bindings_header"] = "Клавіші M",
+        ["mkey_default"] = "За замовчуванням",
+        ["mkey_volume_up"] = "Volume Up",
+        ["mkey_volume_down"] = "Volume Down",
+        ["mkey_play"] = "Play / Pause",
+        ["mkey_media_next"] = "Next Track",
+        ["mkey_media_prev"] = "Previous Track",
+        ["mkey_sleep"] = "Sleep",
+        ["mkey_calculator"] = "Calculator",
+        ["mkey_screen_off"] = "Screen Off",
 
         // KEY NAMES
         ["key_m4"] = "Клавіша ROG / M5",
@@ -873,6 +884,7 @@ public static class Ukrainian
         ["sysfiles_diff_close"] = "Закрити",
         ["sysfiles_remove"] = "Вилучити",
         ["sysfiles_name_gpu_helper"] = "Привілейований помічник GPU",
+        ["sysfiles_name_ryzenadj"] = "Інструмент налаштування живлення AMD (ryzenadj)",
         ["sysfiles_name_gpu_block_helper"] = "Скрипт блокування GPU",
         ["sysfiles_name_gpu_boot_script"] = "Скрипт завантаження GPU",
         ["sysfiles_name_gpu_boot_service"] = "Служба завантаження GPU (systemd)",
