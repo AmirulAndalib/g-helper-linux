@@ -77,10 +77,18 @@ Pull requests and feature requests are welcome!
 │  GPU mode switching        Eco / Standard / Optimized (MUX)     │
 │  Power limits              CPU PL1/PL2, Dynamic Boost, temps    │
 │  Screen control            Refresh rate, Panel OD, MiniLED      │
-│  Keyboard backlight        Brightness + RGB color               │
-│  Display                   Brightness, gamma adjustment         │
-│  Undervolting (AMD)        Curve Optimizer via ryzen_smu         │
-│  CPU boost                 Enable/disable turbo boost            │
+│  Keyboard backlight        Brightness + RGB (per-key Aura)      │
+│  Display                   Brightness, gamma, multi-backend     │
+│  Undervolting              AMD Curve Optimizer, Intel MSR       │
+│  CPU boost + EPP           Turbo boost, energy preference       │
+│  Audio DSP                 EQ, noise suppression, reverb        │
+│  Anime Matrix / Slash      LED matrix display control           │
+│  ROG Ally                  Controller mode, handheld config     │
+│  FnLock remapping          Custom Fn key bindings               │
+│  NumberPad                 Trackpad numpad emulation             │
+│  Mouse / peripherals       DPI, polling, Logitech HID++         │
+│  System monitor            CPU/GPU/RAM dashboard + tray stats   │
+│  Self-updater              In-app update check + changelog      │
 │  System tray               Background tray icon + context menu  │
 │  Auto-start                XDG autostart .desktop integration   │
 └──────────────────────────────────────────────────────────────────┘
@@ -344,38 +352,153 @@ g-helper-linux/
     install-local.sh                      # Install from local build (devs)
     90-ghelper.rules                      # udev rules
     ghelper.desktop                       # Desktop entry
+  vendor/
+    gpu-helper/                           # Native C helper (setuid root)
+      gpu-helper.c                        #   Main entry + CLI dispatch
+      nvidia_ops.c                        #   NVML process scan, refcnt, MPS
+      pci_ops.c                           #   PCI power control, DRM unbind
+      wmi_ops.c                           #   ACPI/WMI raw calls
+      msr_ops.c                           #   Intel MSR undervolting
+      process_ops.c                       #   Process kill for GPU holders
+      lenovo_ops.c                        #   Lenovo WMI fan/thermal
+    ryzenadj/                             # AMD SMU power tuning (bundled)
+    wlr-randr/                            # Wayland display backend (bundled)
+  audio-helper/                           # Native C PipeWire DSP helper
+    main.c                                #   Real-time audio frame I/O
+    protocol.h                            #   Shared frame protocol with C#
+    rnnoise/                              #   RNNoise noise suppression lib
+  scripts/
+    i18n-check.sh                         # Translation key validation
+    kernel-check.sh                       # Upstream kernel feature tracking
+    upstream-check.sh                     # Windows G-Helper upstream diff
+  tests/
+    GHelper.Linux.Tests/                  # C# scenario tests
+  docs/
+    raw-wmi.md                            # Raw ACPI/WMI mode (2020-2021)
+    amd-undervolting.md                   # AMD Curve Optimizer setup
   src/
     Program.cs                            # Entry point
-    App.axaml / App.axaml.cs              # Avalonia app + tray icon
-    GHelper.Linux.csproj                  # Project file (AOT config)
+    App.axaml / App.axaml.cs              # Avalonia app + tray icon + lifecycle
+    GHelper.Linux.csproj                  # Project file (.NET 10.0, AOT)
     Helpers/
-      Logger.cs                           # Console logger
       AppConfig.cs                        # Configuration (JSON, AOT-safe)
+      Logger.cs                           # Console logger
+      AudioHelper.cs                      # PipeWire DSP bridge (audio-helper)
+      AudioFrame.cs                       # Native frame protocol structs
+      CommandIpc.cs                       # Single-instance IPC
+      Diagnostics.cs                      # System info dump
+      NativeLibExtractor.cs               # Embedded binary extraction
+      SystemTelemetry.cs                  # CPU/RAM/temp monitoring
+      TraySystemMonitor.cs                # Tray tooltip telemetry
     Mode/
       Modes.cs                            # Performance mode definitions
       ModeControl.cs                      # Mode change orchestrator
+    Battery/
+      BatteryControl.cs                   # Charge limit + battery info
+    Fan/
+      FanSensorControl.cs                 # Multi-sensor fan curve logic
+      FanHysteresis.cs                    # Hysteresis smoothing
+    Gpu/
+      GPUModeControl.cs                   # Eco/Standard/Ultimate orchestrator
+      NVidia/
+        LinuxNvidiaGpuControl.cs          #   NVML + nvidia-smi monitoring
+        NvidiaProcessScanner.cs           #   dGPU holder scan (proc/NVML/MPS)
+        GpuQueryGate.cs                   #   Circuit breaker for wedged dGPU
+      AMD/
+        LinuxAmdGpuControl.cs             #   amdgpu hwmon sysfs
+        LinuxAmdDgpuDetect.cs             #   AMD dGPU presence detection
+        LinuxAmdGpuMetrics.cs             #   GPU metrics table parsing
+    Display/
+      LinuxDisplayControl.cs              # Brightness, gamma, refresh rate
+      DisplayBackendFactory.cs            # Auto-detect display backend
+      XrandrBackend.cs                    # X11 xrandr
+      WlrRandrBackend.cs                  # wlroots Wayland
+      KScreenBackend.cs                   # KDE Wayland
+      GdctlBackend.cs                     # GNOME display control
+      MiniLed.cs                          # MiniLED zone control
+      OptimalBrightness.cs                # Ambient-adaptive brightness
+    Input/
+      InputDispatcher.cs                  # Hotkey routing + FnF5 debounce
+      EvdevInterop.cs                     # Raw evdev P/Invoke
+      FnLockRemapper.cs                   # Fn-lock key remapping
+      GamepadNav.cs                       # Gamepad UI navigation
+      MKeyControl.cs                      # M-key macro support
+      NumberPad.cs                        # Trackpad numpad emulation
+      OskUinput.cs                        # On-screen keyboard uinput
+    I18n/
+      Labels.cs                           # Translation key registry
+      Languages/                          # 38 language files
+    Install/
+      Installer.cs                        # Self-install / system file sync
+    Ally/
+      AllyControl.cs                      # ROG Ally handheld controller
+      ControllerMode.cs                   # Gamepad / desktop mode toggle
+    AnimeMatrix/
+      AniMatrixControl.cs                 # Anime Matrix LED display
+      AnimeMatrixDevice.cs                # HID protocol
+      SlashDevice.cs                      # Slash LED display
+    Peripherals/
+      PeripheralsProvider.cs              # Device discovery
+      Mouse/                              # Mouse DPI / polling config
+      Logitech/                           # Logitech HID++ protocol
+    USB/
+      AsusHid.cs                          # ASUS HID protocol
+      Aura.cs                             # Aura RGB lighting
+      CustomRgb.cs                        # Per-key RGB
+      LenovoRgb.cs                        # Lenovo keyboard RGB
     Platform/
+      IHardwareControl.cs                 # Hardware abstraction interfaces
       Linux/
         SysfsHelper.cs                    # Core sysfs read/write utility
-        LinuxAsusWmi.cs                   # asus-wmi sysfs + evdev events
-        LinuxPowerManager.cs              # CPU boost, platform profile
-        LinuxDisplayControl.cs            # Backlight, xrandr, gamma
-        LinuxNvidiaGpuControl.cs          # nvidia-smi monitoring
-        LinuxAmdGpuControl.cs             # amdgpu sysfs monitoring
-        LinuxAudioControl.cs              # PulseAudio/PipeWire
+        LinuxPowerManager.cs              # CPU boost, platform profile, EPP
+        LinuxAudioControl.cs              # PulseAudio/PipeWire volume
         LinuxInputHandler.cs              # evdev event forwarding
         LinuxSystemIntegration.cs         # DMI sysfs, XDG autostart
+        Asus/
+          LinuxAsusWmi.cs                 #   asus-wmi sysfs + ACPI events
+          AsusAttributes.cs               #   Firmware attribute discovery
+          StatusLed.cs                    #   Status LED control
+        Lenovo/
+          LinuxLenovoWmi.cs               #   Lenovo WMI platform driver
+          LenovoAttributes.cs             #   Lenovo sysfs attributes
+          LenovoDetection.cs              #   Model detection + quirks
+        RyzenSmu.cs                       # AMD Curve Optimizer (ryzen_smu)
+        IntelUndervolt.cs                 # Intel MSR undervolting
+        CpuEpp.cs                         # Energy Performance Preference
+        Cosmic.cs                         # COSMIC DE integration
+        NixOS.cs                          # NixOS-specific paths
+        ImmutableOs.cs                    # Fedora Atomic / SteamOS quirks
     UI/
       Styles/
         GHelperTheme.axaml                # Dark theme
       Controls/
         FanCurveChart.cs                  # Interactive fan curve chart
+        EqResponseView.cs                 # EQ frequency response
+        KnobControl.cs                    # Audio knob widget
+        WaveformView.cs                   # Audio waveform display
+        SpectrumView.cs                   # Audio spectrum analyzer
+      Dialogs/
+        ConfirmDialog.axaml               # Reusable confirm dialog
       Views/
         MainWindow.axaml / .cs            # Main settings window
-        FansWindow.axaml / .cs            # Fan curve editor + power limits
+        FansWindow.axaml / .cs            # Fan curves + power limits
         ExtraWindow.axaml / .cs           # Display, power, system info
+        AudioWindow.axaml / .cs           # Audio device routing
+        EqWindow.axaml / .cs              # Parametric equalizer
+        NoiseWindow.axaml / .cs           # RNNoise suppression
+        ReverbWindow.axaml / .cs          # Reverb effect
+        VocoderWindow.axaml / .cs         # Vocoder effect
+        MonitorWindow.axaml / .cs         # System monitor dashboard
+        HandheldWindow.axaml / .cs        # ROG Ally / handheld config
+        MatrixWindow.axaml / .cs          # Anime Matrix editor
+        FnLockWindow.axaml / .cs          # FnLock key config
+        MouseWindow.axaml / .cs           # Mouse/peripheral settings
+        NvidiaProcessesWindow.axaml / .cs # dGPU process viewer
+        UpdatesWindow.axaml / .cs         # Self-updater
+        SystemInfoWindow.axaml / .cs      # System info viewer
       Assets/
-        *.png, *.ico                      # Image assets
+        Icons/                            # SVG icon library
+        *.ico                             # Tray + window icons
 ```
 
 ---
@@ -387,9 +510,10 @@ g-helper-linux/
 | `\\.\ATKACPI` DeviceIoControl | `/sys/devices/platform/asus-nb-wmi/` sysfs |
 | DSTS (read) / DEVS (write) | `cat` / `echo >` sysfs attributes |
 | WMI `Win32_*` queries | `/sys/class/dmi/id/` sysfs |
-| `user32.dll` EnumDisplaySettings | `xrandr` CLI |
-| NvAPIWrapper.Net | `nvidia-smi` CLI + hwmon sysfs |
-| `atiadlxx.dll` (AMD ADL) | amdgpu hwmon sysfs |
+| `user32.dll` EnumDisplaySettings | xrandr / wlr-randr / kscreen / gdctl (auto-detect) |
+| NvAPIWrapper.Net | gpu-helper (NVML) + nvidia-smi fallback |
+| `atiadlxx.dll` (AMD ADL) | amdgpu hwmon sysfs + gpu-helper PCI ops |
+| NAudio / CoreAudio | audio-helper (PipeWire native C, real-time DSP) |
 | Task Scheduler autostart | XDG `~/.config/autostart/*.desktop` |
 | WinForms UI | Avalonia UI (cross-platform) |
 
@@ -402,6 +526,8 @@ g-helper-linux/
 - [asus-wmi kernel driver](https://github.com/torvalds/linux/tree/master/drivers/platform/x86)
 - [ryzen_smu](https://github.com/amkillam/ryzen_smu) by Leonardo Gates / amkillam
 - [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) by FlyGoat (bundled CLI binary for AMD SMU power tuning)
+- [RNNoise](https://github.com/xiph/rnnoise) by Jean-Marc Valin / Xiph.Org (noise suppression)
+- [PipeWire](https://pipewire.org/) (native audio DSP pipeline)
 
 ---
 
