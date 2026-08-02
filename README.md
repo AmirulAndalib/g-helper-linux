@@ -1,3 +1,14 @@
+<div align="center">
+
+[![GitHub Release](https://img.shields.io/github/v/release/utajum/g-helper-linux?style=for-the-badge&color=4a9eff)](https://github.com/utajum/g-helper-linux/releases/latest)
+[![Total Binary Downloads](https://img.shields.io/github/downloads/utajum/g-helper-linux/ghelper?style=for-the-badge&color=28c840&label=total%20binary%20downloads)](https://github.com/utajum/g-helper-linux/releases)
+[![Total AppImage Downloads](https://img.shields.io/github/downloads/utajum/g-helper-linux/GHelper-x86_64.AppImage?style=for-the-badge&color=28c840&label=total%20appimage%20downloads)](https://github.com/utajum/g-helper-linux/releases)
+[![License](https://img.shields.io/github/license/utajum/g-helper-linux?style=for-the-badge&color=a0c8ff)](https://github.com/utajum/g-helper-linux/blob/master/LICENSE)
+[![Changelog](https://img.shields.io/badge/changelog-what's_new-ff8c42?style=for-the-badge)](CHANGELOG.md)
+[![Stars](https://img.shields.io/github/stars/utajum/g-helper-linux?style=for-the-badge&color=f0c040)](https://github.com/utajum/g-helper-linux/stargazers)
+
+</div>
+
 [![G-Helper for Linux](screenshot.png)](screenshot.png)
 
 *Click on the screenshot to view full size.*
@@ -24,17 +35,6 @@
            ║  ASUS LAPTOP CONTROL FOR LINUX       ║
             ╚══════════════════════════════════════╝
 ```
-
-<div align="center">
-
-[![GitHub Release](https://img.shields.io/github/v/release/utajum/g-helper-linux?style=for-the-badge&color=4a9eff)](https://github.com/utajum/g-helper-linux/releases/latest)
-[![Total Binary Downloads](https://img.shields.io/github/downloads/utajum/g-helper-linux/ghelper?style=for-the-badge&color=28c840&label=total%20binary%20downloads)](https://github.com/utajum/g-helper-linux/releases)
-[![Total AppImage Downloads](https://img.shields.io/github/downloads/utajum/g-helper-linux/GHelper-x86_64.AppImage?style=for-the-badge&color=28c840&label=total%20appimage%20downloads)](https://github.com/utajum/g-helper-linux/releases)
-[![License](https://img.shields.io/github/license/utajum/g-helper-linux?style=for-the-badge&color=a0c8ff)](https://github.com/utajum/g-helper-linux/blob/master/LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-what's_new-ff8c42?style=for-the-badge)](CHANGELOG.md)
-[![Stars](https://img.shields.io/github/stars/utajum/g-helper-linux?style=for-the-badge&color=f0c040)](https://github.com/utajum/g-helper-linux/stargazers)
-
-</div>
 
 <!-- star-history:start -->
 <picture>
