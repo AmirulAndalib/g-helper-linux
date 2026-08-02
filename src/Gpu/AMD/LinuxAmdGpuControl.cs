@@ -250,18 +250,62 @@ public class LinuxAmdGpuControl : IGpuControl
         if (_deviceDir == null)
             return null;
 
-        // Try to read the PCI device name
         var marketingName = SysfsHelper.ReadAttribute(Path.Combine(_deviceDir, "product_name"));
         if (marketingName != null)
             return marketingName;
 
-        // Fallback: read from lspci
+        // amdgpu.ids lookup: device_id + revision -> friendly name
+        var name = LookupAmdGpuIds();
+        if (name != null)
+            return name;
+
         var vbiosVersion = SysfsHelper.ReadAttribute(Path.Combine(_deviceDir, "vbios_version"));
         if (vbiosVersion != null)
             return $"AMD GPU ({vbiosVersion})";
 
-        // Last resort: use the hwmon name
         return "AMD GPU";
+    }
+
+    /// <summary>Friendly name from /usr/share/libdrm/amdgpu.ids.</summary>
+    private string? LookupAmdGpuIds()
+    {
+        if (_deviceDir == null)
+            return null;
+
+        const string idsPath = "/usr/share/libdrm/amdgpu.ids";
+        if (!File.Exists(idsPath))
+            return null;
+
+        // Read device ID (0x7480 -> "7480") and revision (0xc8 -> "c8")
+        string? rawDevice = SysfsHelper.ReadAttribute(Path.Combine(_deviceDir, "device"));
+        string? rawRevision = SysfsHelper.ReadAttribute(Path.Combine(_deviceDir, "revision"));
+        if (rawDevice == null)
+            return null;
+
+        string deviceId = rawDevice.Trim().TrimStart('0', 'x', 'X').ToLowerInvariant();
+        string revision = (rawRevision ?? "").Trim().TrimStart('0', 'x', 'X').ToLowerInvariant();
+
+        try
+        {
+            foreach (var line in File.ReadLines(idsPath))
+            {
+                if (line.Length == 0 || line[0] == '#')
+                    continue;
+                // Format: "device_id,\trevision_id,\tmarketing_name"
+                var parts = line.Split(',');
+                if (parts.Length < 3)
+                    continue;
+                string d = parts[0].Trim().ToLowerInvariant();
+                string r = parts[1].Trim().ToLowerInvariant();
+                if (d == deviceId && r == revision)
+                {
+                    string name = parts[2].Trim();
+                    return name.Length > 0 ? name : null;
+                }
+            }
+        }
+        catch { }
+        return null;
     }
 
     /// <summary>

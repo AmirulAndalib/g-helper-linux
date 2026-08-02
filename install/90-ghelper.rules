@@ -196,6 +196,11 @@ SUBSYSTEM=="leds", KERNEL=="asus::kbd_backlight*", \
 SUBSYSTEM=="leds", KERNEL=="asus::lightbar", \
   RUN+="/bin/chmod 0666 /sys/class/leds/asus::lightbar/brightness"
 
+# XG Mobile dock ring. Name suffix varies by dock firmware, hence the glob.
+# This is the fallback used when the dock's hidraw node is unavailable.
+SUBSYSTEM=="leds", KERNEL=="asus:xgm*", \
+  RUN+="/bin/sh -c 'chmod 0666 /sys/class/leds/%k/brightness 2>/dev/null'"
+
 SUBSYSTEM=="leds", KERNEL=="asus::kbd_backlight*", \
   ATTR{multi_intensity}!="", \
   RUN+="/bin/sh -c 'chmod 0666 /sys/class/leds/%k/multi_intensity 2>/dev/null'"

@@ -24,6 +24,20 @@ public static class GpuQueryGate
     }
 
     /// <summary>
+    /// Push the pause deadline out, never in. A recovery that takes longer than
+    /// its opening budget refreshes the window as it makes progress, so the
+    /// gate cannot expire while the driver is still in flux. Leaves Hold() set.
+    /// </summary>
+    public static void Extend(TimeSpan duration, string reason)
+    {
+        var target = DateTime.UtcNow + duration;
+        if (target <= _pausedUntilUtc)
+            return;
+        _pausedUntilUtc = target;
+        Logger.WriteLine($"GpuQueryGate: pause extended {duration.TotalSeconds:0}s ({reason})");
+    }
+
+    /// <summary>
     /// Pause with no expiry, for a dGPU that failed to re-initialise. Every
     /// query against it spawns an nvidia-smi that blocks until its timeout, so
     /// a timed pause just resumes the spam. Cleared by Resume() on the next

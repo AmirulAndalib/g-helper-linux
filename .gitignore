@@ -42,3 +42,7 @@ Desktop.ini
 *.nupkg
 .planning
 .opencode
+
+# Python bytecode
+__pycache__/
+*.pyc

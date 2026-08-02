@@ -145,7 +145,6 @@ internal static class EvdevInterop
     private const uint _IOC_NRBITS = 8;
     private const uint _IOC_TYPEBITS = 8;
     private const uint _IOC_SIZEBITS = 14;
-    private const uint _IOC_DIRBITS = 2;
     private const uint _IOC_NRSHIFT = 0;
     private const uint _IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS;
     private const uint _IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS;

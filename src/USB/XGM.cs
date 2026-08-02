@@ -75,6 +75,72 @@ public static class XGM
         }
     }
 
+    // Kernel LED-class fallback. asus-wmi exposes the dock's ring as
+    // "asus:xgm-<something>" with max_brightness=1, which needs no hidraw
+    // access. It only does on/off - brightness and mode stay HID-only.
+
+    private static string? _sysfsLedDir;
+    private static bool _sysfsLedProbed;
+
+    /// <summary>
+    /// Path of the dock's LED-class directory, or null. The suffix varies by
+    /// firmware, so match on the "asus:xgm" prefix rather than a fixed name.
+    /// Cached: the node appears and disappears with the dock, so a miss is
+    /// re-probed while a hit is kept only as long as it still exists.
+    /// </summary>
+    private static string? SysfsLedDir()
+    {
+        if (_sysfsLedProbed && _sysfsLedDir != null && Directory.Exists(_sysfsLedDir))
+            return _sysfsLedDir;
+
+        _sysfsLedProbed = true;
+        _sysfsLedDir = null;
+        try
+        {
+            if (!Directory.Exists(Platform.Linux.SysfsHelper.Leds))
+                return null;
+
+            foreach (var dir in Directory.EnumerateDirectories(Platform.Linux.SysfsHelper.Leds))
+            {
+                var name = Path.GetFileName(dir);
+                if (name.StartsWith("asus:xgm", StringComparison.OrdinalIgnoreCase)
+                    && File.Exists(Path.Combine(dir, "brightness")))
+                {
+                    _sysfsLedDir = dir;
+                    return dir;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Helpers.Logger.WriteLine($"XGM.SysfsLedDir: {ex.Message}");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// True when the dock LED can be driven at all, over HID or the LED class.
+    /// Use this for UI visibility; <see cref="IsConnected"/> stays HID-only
+    /// because the brightness slider and mode packets need the HID channel.
+    /// </summary>
+    public static bool IsLightAvailable() => IsConnected() || SysfsLedDir() != null;
+
+    /// <summary>
+    /// Toggle the ring through the LED class. Returns false when the node is
+    /// absent or not writable (it is root-owned without a udev rule).
+    /// </summary>
+    private static bool SysfsLight(bool on)
+    {
+        var dir = SysfsLedDir();
+        if (dir == null)
+            return false;
+
+        var path = Path.Combine(dir, "brightness");
+        bool ok = Platform.Linux.SysfsHelper.WriteInt(path, on ? 1 : 0);
+        Helpers.Logger.WriteLine($"XGM.SysfsLight({on}) via {path}: {ok}");
+        return ok;
+    }
+
     /// <summary>
     /// Returns the first matching dock hidraw device path, or null. Useful for
     /// diagnostics and logging.
@@ -182,13 +248,16 @@ public static class XGM
     /// </summary>
     public static bool Light(bool on)
     {
-        if (!IsConnected())
-            return false;
+        if (IsConnected())
+        {
+            bool ok1 = Write(new byte[] { 0xC5, on ? (byte)0x50 : (byte)0x00 }, "XGM:Light:profile");
+            bool ok2 = Write(new byte[] { 0xBD, 0x00, on ? (byte)0x01 : (byte)0x00 }, "XGM:Light:onoff");
+            Helpers.Logger.WriteLine($"XGM.Light({on}): profile={ok1} onoff={ok2}");
+            if (ok1 && ok2)
+                return true;
+        }
 
-        bool ok1 = Write(new byte[] { 0xC5, on ? (byte)0x50 : (byte)0x00 }, "XGM:Light:profile");
-        bool ok2 = Write(new byte[] { 0xBD, 0x00, on ? (byte)0x01 : (byte)0x00 }, "XGM:Light:onoff");
-        Helpers.Logger.WriteLine($"XGM.Light({on}): profile={ok1} onoff={ok2}");
-        return ok1 && ok2;
+        return SysfsLight(on);
     }
 
     /// <summary>
@@ -240,7 +309,7 @@ public static class XGM
     /// </summary>
     public static bool InitLight()
     {
-        if (!IsConnected())
+        if (!IsLightAvailable())
             return false;
 
         bool on = Helpers.AppConfig.Get("xmg_light", 1) == 1;
@@ -251,6 +320,9 @@ public static class XGM
             brightness = 3;
 
         bool a = Light(on);
+        if (!IsConnected())
+            return a;
+
         bool b = LightBrightness((byte)brightness);
         return a && b;
     }

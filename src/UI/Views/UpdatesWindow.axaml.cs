@@ -56,7 +56,7 @@ public partial class UpdatesWindow : Window
 
     private string? _model;
     private string? _biosVersion;
-    private int _updatesCount = 0;
+    private int _updatesCount;
     private bool _sysFilesExpanded;
 
     public UpdatesWindow()
@@ -987,7 +987,7 @@ public partial class UpdatesWindow : Window
                         int remote = int.Parse(driver.Version);
                         int local = int.Parse(_biosVersion);
                         status = remote > local ? 1 : -1;
-                        tooltip = Labels.Format("download_tooltip", driver.Version, _biosVersion ?? "");
+                        tooltip = Labels.Format("download_tooltip", driver.Version, _biosVersion);
                     }
                     catch
                     {
@@ -1279,7 +1279,7 @@ public partial class UpdatesWindow : Window
         return (s.Substring(0, start), int.Parse(s.Substring(start, end - start)));
     }
 
-    private int _rowIndex = 0;
+    private int _rowIndex;
 
     private void AddDriverRow(StackPanel panel, DriverInfo driver, int status, string tooltip)
     {
@@ -1517,13 +1517,42 @@ public partial class UpdatesWindow : Window
             await Task.Run(async () => await DownloadAndInstallUpdate(url, btnUpdate));
         };
 
-        var btnRow = new StackPanel
+        var btnChangelog = new Button
+        {
+            Content = Labels.Get("changelog_title"),
+            MinWidth = 100,
+            Padding = new Avalonia.Thickness(14, 8),
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+        };
+        ChangelogWindow? changelog = null;
+        btnChangelog.Click += (_, _) =>
+        {
+            if (changelog is { IsVisible: true })
+            {
+                changelog.Activate();
+                return;
+            }
+            changelog = new ChangelogWindow();
+            changelog.Closed += (_, _) => changelog = null;
+            // Parented to the main window, not this prompt - dismissing the
+            // prompt must not take the release notes with it.
+            changelog.Show(owner);
+        };
+
+        var primaryRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
         };
-        btnRow.Children.Add(btnUpdate);
-        btnRow.Children.Add(btnLater);
+        primaryRow.Children.Add(btnUpdate);
+        primaryRow.Children.Add(btnLater);
+
+        // Secondary action left, primary actions right.
+        var btnRow = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        Grid.SetColumn(btnChangelog, 0);
+        Grid.SetColumn(primaryRow, 1);
+        btnRow.Children.Add(btnChangelog);
+        btnRow.Children.Add(primaryRow);
         root.Children.Add(btnRow);
 
         dialog.Content = root;

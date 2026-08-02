@@ -247,12 +247,6 @@ public class AniMatrixControl : IDisposable
         {
             using var stream = File.OpenRead(fileName);
             using var codec = SKCodec.Create(stream);
-            if (codec is null)
-            {
-                Logger.WriteLine($"Matrix: failed to decode {fileName}");
-                return;
-            }
-
             ProcessPicture(codec);
             Logger.WriteLine("Matrix " + fileName);
         }

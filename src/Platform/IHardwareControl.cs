@@ -103,6 +103,12 @@ public interface IHardwareControl : IDisposable
     /// <summary>Set MiniLED mode.</summary>
     void SetMiniLedMode(int mode);
 
+    /// <summary>
+    /// Number of MiniLED dimming modes this panel accepts. 2 = off/on,
+    /// 3 = off/multi-zone/multi-zone strong. 0 when unsupported.
+    /// </summary>
+    int GetMiniLedModeCount();
+
     /// <summary>Get raw firmware state of Optimal Display Brightness (screen_auto_brightness): 0=off, 1=on, -1 if unsupported.</summary>
     int GetScreenAutoBrightness();
 

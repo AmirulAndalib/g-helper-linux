@@ -325,6 +325,8 @@ public class LinuxLenovoWmi : IHardwareControl
 
     public void SetMiniLedMode(int mode) { }
 
+    public int GetMiniLedModeCount() => 0;
+
     public int GetScreenAutoBrightness() => -1;
 
     public void SetScreenAutoBrightness(bool enabled) { }

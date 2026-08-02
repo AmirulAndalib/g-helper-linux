@@ -106,9 +106,9 @@ public static class Aura
     public static byte ColorG = 255;
     public static byte ColorB = 255;
 
-    public static byte Color2R = 0;
-    public static byte Color2G = 0;
-    public static byte Color2B = 0;
+    public static byte Color2R;
+    public static byte Color2G;
+    public static byte Color2B;
 
     // Rear-light state (Z13 only). The rear glow window/logo on the lid is a
     // separate AURA device (PID 0x18C6) and accepts its own AuraMessage with
@@ -119,7 +119,7 @@ public static class Aura
     public static byte RearB = 255;
 
     private static bool _backlight = true;
-    private static bool _initDirect = false;
+    private static bool _initDirect;
 
 
     private static readonly System.Timers.Timer _customTimer = CreateCustomTimer();

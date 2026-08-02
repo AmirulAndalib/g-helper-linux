@@ -129,12 +129,12 @@ public class AnimeMatrixDevice : Device
     public int MaxColumns = 34;
 
     /// <summary>Linear address offset for the first LED (1 for GA401, 0 for others).</summary>
-    public int LedStart = 0;
+    public int LedStart;
 
     /// <summary>Number of leading rows with special pitch (header rows).</summary>
     public int FullRows = 11;
 
-    private int frameIndex = 0;
+    private int frameIndex;
 
     private static AnimeType _model = AnimeType.GA402;
 

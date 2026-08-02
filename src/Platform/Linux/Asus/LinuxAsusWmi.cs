@@ -39,6 +39,11 @@ public class LinuxAsusWmi : IHardwareControl
     private readonly Dictionary<string, int> _lastWrittenInt = new();
     private int _lastThrottlePolicy = int.MinValue;
 
+    // FW-attr external change watcher
+    private Thread? _fwAttrWatchThread;
+    private volatile bool _fwAttrWatching;
+    private readonly Dictionary<string, string> _fwAttrCache = new();
+
     public int FanCount { get; private set; } = 2;
 
     public event Action<int>? WmiEvent;
@@ -105,6 +110,74 @@ public class LinuxAsusWmi : IHardwareControl
 
         if (_batteryDir != null)
             Helpers.Logger.WriteLine($"Battery found: {_batteryDir}");
+
+        StartFwAttrWatcher();
+    }
+
+    // FW-attr external change polling
+
+    private void StartFwAttrWatcher()
+    {
+        if (!Directory.Exists(SysfsHelper.FirmwareAttributes))
+            return;
+
+        // Seed cache with current values
+        foreach (var attr in AsusAttributes.All)
+        {
+            string path = Path.Combine(SysfsHelper.FirmwareAttributes, attr.FwAttrName, "current_value");
+            if (File.Exists(path))
+            {
+                string? val = SysfsHelper.ReadAttribute(path);
+                if (val != null)
+                    _fwAttrCache[attr.FwAttrName] = val;
+            }
+        }
+
+        if (_fwAttrCache.Count == 0)
+            return;
+
+        _fwAttrWatching = true;
+        _fwAttrWatchThread = new Thread(FwAttrWatchLoop)
+        {
+            Name = "FwAttrWatch",
+            IsBackground = true
+        };
+        _fwAttrWatchThread.Start();
+        Helpers.Logger.WriteLine($"FW-attr watcher started ({_fwAttrCache.Count} attributes)");
+    }
+
+    private void FwAttrWatchLoop()
+    {
+        while (_fwAttrWatching)
+        {
+            Thread.Sleep(5000);
+            if (!_fwAttrWatching)
+                break;
+
+            foreach (var kvp in _fwAttrCache)
+            {
+                string path = Path.Combine(SysfsHelper.FirmwareAttributes, kvp.Key, "current_value");
+                string? val = SysfsHelper.ReadAttribute(path);
+                if (val == null || val == kvp.Value)
+                    continue;
+
+                // Skip values we wrote ourselves (_lastWrittenInt keys are legacy names)
+                if (int.TryParse(val, out int parsed))
+                {
+                    lock (_lastWrittenInt)
+                    {
+                        if (_lastWrittenInt.TryGetValue(kvp.Key, out int wrote) && wrote == parsed)
+                            continue;
+                        var def = AsusAttributes.All.FirstOrDefault(a => a.FwAttrName == kvp.Key);
+                        if (def != null && _lastWrittenInt.TryGetValue(def.LegacyName, out wrote) && wrote == parsed)
+                            continue;
+                    }
+                }
+
+                _fwAttrCache[kvp.Key] = val;
+                Helpers.Logger.WriteLine($"FW-attr external change: {kvp.Key} -> {val}");
+            }
+        }
     }
 
     // Core ACPI-equivalent methods
@@ -984,6 +1057,17 @@ public class LinuxAsusWmi : IHardwareControl
             SysfsHelper.WriteInt(path, mode);
     }
 
+    public int GetMiniLedModeCount()
+    {
+        if (!IsFeatureSupported(AsusAttributes.MiniLedMode))
+            return 0;
+
+        // possible_values only exists under asus-armoury. Legacy sysfs and
+        // kernels that publish no list fall back to the off/on pair.
+        var values = SysfsHelper.ReadPossibleValues(AsusAttributes.MiniLedMode);
+        return values is { Length: >= 2 } ? values.Length : 2;
+    }
+
     // Optimal Display Brightness (screen_auto_brightness, ACPI WMI DEVID 0x0005002A).
     // Linux kernel asus-armoury exposes this as a boolean firmware-attribute only;
     // no legacy asus-nb-wmi sysfs equivalent. Same firmware endpoint as Windows.
@@ -1576,8 +1660,8 @@ public class LinuxAsusWmi : IHardwareControl
     public void Dispose()
     {
         _eventListening = false;
+        _fwAttrWatching = false;
 
-        // Close evdev streams to unblock any blocking fs.Read() calls
         lock (_eventStreams)
         {
             foreach (var fs in _eventStreams)
@@ -1590,5 +1674,6 @@ public class LinuxAsusWmi : IHardwareControl
         }
 
         _eventThread?.Join(500);
+        _fwAttrWatchThread?.Join(500);
     }
 }

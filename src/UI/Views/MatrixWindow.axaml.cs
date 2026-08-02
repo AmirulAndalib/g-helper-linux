@@ -165,12 +165,6 @@ public partial class MatrixWindow : Window
         {
             using var stream = File.OpenRead(path);
             using var codec = SKCodec.Create(stream);
-            if (codec == null)
-            {
-                labelImageInfo.Text = "Failed to decode image";
-                return;
-            }
-
             var info = codec.Info;
             _sourceBitmap = SKBitmap.Decode(codec);
 

@@ -7,12 +7,15 @@ int do_daemon(int argc, char **argv)
 {
     if (argc != 4)
     {
-        fprintf(stderr, "usage: daemon <stop|start|reset-failed> <unit>\n");
+        fprintf(stderr, "usage: daemon <stop|start|reset-failed|try-restart> <unit>\n");
         return 1;
     }
     const char *verb = argv[2];
     const char *unit = argv[3];
-    if (strcmp(verb, "stop") != 0 && strcmp(verb, "start") != 0 && strcmp(verb, "reset-failed") != 0)
+    /* try-restart is a no-op when the unit is not already running, so it
+       cannot start a daemon the user deliberately left off. */
+    if (strcmp(verb, "stop") != 0 && strcmp(verb, "start") != 0 &&
+        strcmp(verb, "reset-failed") != 0 && strcmp(verb, "try-restart") != 0)
     {
         fprintf(stderr, "daemon: verb not permitted\n");
         return 1;
@@ -249,6 +252,190 @@ int do_drm_notify_remove(int argc, char **argv)
 
     if (signaled == 0)
         glog(LOG_INFO, "drm-notify-remove %s: no card entries", bdf);
+
+    /* PCI device uevent: notify nvidia EGL/Vulkan/NVML to release /dev/nvidia* FDs+mmaps. */
+    {
+        char pci_uevent[PATH_BUF_SIZE];
+        snprintf(pci_uevent, sizeof(pci_uevent),
+                 "/sys/bus/pci/devices/%s/uevent", bdf);
+        int pfd = open(pci_uevent, O_WRONLY);
+        if (pfd < 0)
+        {
+            glog(LOG_WARNING, "drm-notify-remove %s: pci uevent open: %s",
+                 bdf, strerror(errno));
+        }
+        else
+        {
+            if (write(pfd, "remove", 6) < 0)
+                glog(LOG_WARNING, "drm-notify-remove %s: pci uevent write: %s",
+                     bdf, strerror(errno));
+            else
+            {
+                glog(LOG_INFO, "drm-notify-remove: pci uevent signaled for %s",
+                     bdf);
+                printf("pci\n");
+                signaled++;
+            }
+            close(pfd);
+        }
+    }
+
+    return 0;
+}
+
+/* ---------- nvidia-refcnt-holders ---------- */
+
+/* Dump nvidia module refcnt + every process holding /dev/nvidia* FDs or mmaps. */
+int do_nvidia_refcnt_holders(void)
+{
+    /* Print module refcnt first. */
+    {
+        FILE *f = fopen("/sys/module/nvidia/refcnt", "r");
+        if (f)
+        {
+            int rc;
+            if (fscanf(f, "%d", &rc) == 1)
+                printf("refcnt=%d\n", rc);
+            fclose(f);
+        }
+        else
+        {
+            printf("refcnt=?\n");
+        }
+    }
+
+    DIR *proc = opendir("/proc");
+    if (!proc)
+        return 0;
+
+    struct dirent *pe;
+    while ((pe = readdir(proc)) != NULL)
+    {
+        if (!isdigit((unsigned char)pe->d_name[0]))
+            continue;
+        int pid = atoi(pe->d_name);
+        if (pid <= 0)
+            continue;
+
+        int nv_fds = 0;
+        int nv_maps = 0;
+
+        /* Count /dev/nvidia* FDs. */
+        {
+            char fddir[64];
+            snprintf(fddir, sizeof(fddir), "/proc/%d/fd", pid);
+            DIR *dd = opendir(fddir);
+            if (dd)
+            {
+                struct dirent *fe;
+                while ((fe = readdir(dd)) != NULL)
+                {
+                    char link[PATH_BUF_SIZE];
+                    char fdpath[PATH_BUF_SIZE];
+                    snprintf(fdpath, sizeof(fdpath), "%s/%s", fddir, fe->d_name);
+                    ssize_t n = readlink(fdpath, link, sizeof(link) - 1);
+                    if (n > 0)
+                    {
+                        link[n] = '\0';
+                        if (strncmp(link, NVIDIA_PREFIX, NVIDIA_PREFIX_LEN) == 0)
+                            nv_fds++;
+                    }
+                }
+                closedir(dd);
+            }
+        }
+
+        /* Count /dev/nvidia* memory mappings. */
+        {
+            char mapspath[64];
+            snprintf(mapspath, sizeof(mapspath), "/proc/%d/maps", pid);
+            FILE *mf = fopen(mapspath, "r");
+            if (mf)
+            {
+                char line[MAPS_LINE_SIZE];
+                while (fgets(line, sizeof(line), mf) != NULL)
+                {
+                    if (strstr(line, NVIDIA_PREFIX) != NULL)
+                        nv_maps++;
+                }
+                fclose(mf);
+            }
+        }
+
+        if (nv_fds == 0 && nv_maps == 0)
+            continue;
+
+        /* Read comm. */
+        char comm[COMM_BUF_SIZE] = "?";
+        {
+            char cpath[64];
+            snprintf(cpath, sizeof(cpath), "/proc/%d/comm", pid);
+            FILE *cf = fopen(cpath, "r");
+            if (cf)
+            {
+                if (fgets(comm, sizeof(comm), cf))
+                {
+                    char *nl = strchr(comm, '\n');
+                    if (nl) *nl = '\0';
+                }
+                fclose(cf);
+            }
+        }
+
+        /* Read UID. */
+        unsigned int uid = (unsigned int)-1;
+        {
+            char spath[64];
+            snprintf(spath, sizeof(spath), "/proc/%d/status", pid);
+            FILE *sf = fopen(spath, "r");
+            if (sf)
+            {
+                char sline[256];
+                while (fgets(sline, sizeof(sline), sf))
+                {
+                    if (strncmp(sline, "Uid:", 4) == 0)
+                    {
+                        sscanf(sline + 4, "%u", &uid);
+                        break;
+                    }
+                }
+                fclose(sf);
+            }
+        }
+
+        /* Read service unit from cgroup. */
+        char unit[UNIT_BUF_SIZE] = "-";
+        {
+            char cgpath[64];
+            snprintf(cgpath, sizeof(cgpath), "/proc/%d/cgroup", pid);
+            FILE *cgf = fopen(cgpath, "r");
+            if (cgf)
+            {
+                char cgline[CGROUP_BUF_SIZE];
+                while (fgets(cgline, sizeof(cgline), cgf))
+                {
+                    /* Unified hierarchy: "0::/user.slice/.../foo.service" */
+                    char *svc = strstr(cgline, ".service");
+                    if (svc)
+                    {
+                        /* Walk backwards to find the unit name start. */
+                        char *p = svc;
+                        while (p > cgline && *(p - 1) != '/')
+                            p--;
+                        size_t len = (size_t)(svc + 8 - p);
+                        if (len >= sizeof(unit)) len = sizeof(unit) - 1;
+                        memcpy(unit, p, len);
+                        unit[len] = '\0';
+                        break;
+                    }
+                }
+                fclose(cgf);
+            }
+        }
+
+        printf("%d\t%s\t%u\t%d\t%d\t%s\n", pid, comm, uid, nv_fds, nv_maps, unit);
+    }
+    closedir(proc);
     return 0;
 }
 
@@ -890,7 +1077,7 @@ int do_nvml_procs(void)
     nvmlShutdown_fn nvmlShutdown = (nvmlShutdown_fn)dlsym(lib, "nvmlShutdown");
 
     /* Prefer the newest process-list symbols; struct width follows the symbol. */
-    int gfxWide = 1, cmpWide = 1;
+    int gfxWide = 1, cmpWide = 1, mpsWide = 1;
     nvmlGetProcs_fn getGraphics = (nvmlGetProcs_fn)dlsym(lib, "nvmlDeviceGetGraphicsRunningProcesses_v3");
     if (!getGraphics)
         getGraphics = (nvmlGetProcs_fn)dlsym(lib, "nvmlDeviceGetGraphicsRunningProcesses_v2");
@@ -906,6 +1093,16 @@ int do_nvml_procs(void)
     {
         getCompute = (nvmlGetProcs_fn)dlsym(lib, "nvmlDeviceGetComputeRunningProcesses");
         cmpWide = 0;
+    }
+    /* MPS clients hold a GPU context via the MPS server; the client pid may
+     * not appear in the regular compute list (the server does). */
+    nvmlGetProcs_fn getMps = (nvmlGetProcs_fn)dlsym(lib, "nvmlDeviceGetMPSComputeRunningProcesses_v3");
+    if (!getMps)
+        getMps = (nvmlGetProcs_fn)dlsym(lib, "nvmlDeviceGetMPSComputeRunningProcesses_v2");
+    if (!getMps)
+    {
+        getMps = (nvmlGetProcs_fn)dlsym(lib, "nvmlDeviceGetMPSComputeRunningProcesses");
+        mpsWide = 0;
     }
 
     if (!nvmlInit || !nvmlGetCount || !nvmlGetHandle || !nvmlShutdown || (!getGraphics && !getCompute))
@@ -933,6 +1130,7 @@ int do_nvml_procs(void)
             continue;
         print_nvml_procs(dev, getGraphics, gfxWide, "graphics");
         print_nvml_procs(dev, getCompute, cmpWide, "compute");
+        print_nvml_procs(dev, getMps, mpsWide, "mps");
     }
 
     nvmlShutdown();

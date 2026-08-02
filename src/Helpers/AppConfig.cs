@@ -84,6 +84,8 @@ public static class AppConfig
 
     private static Dictionary<string, JsonElement> _config = new();
     private static readonly object _lock = new();
+    // Guards the config file itself, not _config. Never taken with _lock held.
+    private static readonly object _writeLock = new();
     private static System.Timers.Timer? _writeTimer;
     private static long _lastWrite;
 
@@ -865,7 +867,27 @@ public static class AppConfig
                 json = JsonSerializer.Serialize(_config, ConfigJsonContext.Default.DictionaryStringJsonElement);
             }
 
-            File.WriteAllText(ConfigFile, json);
+            // Write to a sibling temp file then rename. A crash or power loss
+            // mid-write leaves the old config intact instead of a truncated one.
+            // Serialised because the debounce timer and Flush() can land here
+            // together and would otherwise share the one temp path.
+            var tmpFile = ConfigFile + ".tmp";
+            lock (_writeLock)
+            {
+                try
+                {
+                    File.WriteAllText(tmpFile, json);
+                    File.Move(tmpFile, ConfigFile, true);
+                }
+                catch
+                {
+                    try
+                    { File.Delete(tmpFile); }
+                    catch { }
+                    throw;
+                }
+            }
+
             _lastWrite = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
             // Create backup after successful write

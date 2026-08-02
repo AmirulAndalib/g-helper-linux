@@ -457,14 +457,11 @@ public class App : Application
         Mode.RefreshReapplyTimer(); // arm timer if reapply_time is set
 
         // Create GPU mode switching controller
-        if (Wmi != null && Power != null)
-        {
-            GpuModeCtrl = new GPUModeControl(Wmi, Power);
-            GPUModeControl.OnLivePciTransition =
-                Platform.Linux.LinuxAsusWmi.InvalidateGpuPresenceCache;
-            GPUModeControl.OnReapplyGpuTuning =
-                () => Mode?.ReapplyGpuForCurrentMode();
-        }
+        GpuModeCtrl = new GPUModeControl(Wmi, Power);
+        GPUModeControl.OnLivePciTransition =
+            Platform.Linux.LinuxAsusWmi.InvalidateGpuPresenceCache;
+        GPUModeControl.OnReapplyGpuTuning =
+            () => Mode?.ReapplyGpuForCurrentMode();
 
         // Create Ally controller helper. Constructor sets up the 300ms auto-
         // mode timer when on RC71L/RC72L; on every other model the .ctor is
@@ -1141,6 +1138,14 @@ public class App : Application
         try
         { USB.XGM.InitLight(); }
         catch (Exception ex) { Logger.WriteLine($"XGM.InitLight on power change failed: {ex.Message}"); }
+
+        // Blocking systemctl call - keep it off the caller's thread.
+        Task.Run(() =>
+        {
+            try
+            { Gpu.GPUModeControl.ApplyNvidiaPowerdPolicy(onAc); }
+            catch (Exception ex) { Logger.WriteLine($"ApplyNvidiaPowerdPolicy failed: {ex.Message}"); }
+        });
 
         OptimalBrightness.OnPowerStateChanged();
 

@@ -2072,14 +2072,30 @@ public partial class FansWindow : Window
                 {
                     wmi.EnsureManualFanMode();
 
+                    bool nvAttrWritten = false;
                     if (baseTgp != null)
+                    {
                         wmi.SetPptLimit(Platform.Linux.AsusAttributes.NvBaseTgp, baseTgp.Value);
+                        nvAttrWritten = true;
+                    }
                     if (maxTgp != null && _attrNvTgp != null)
+                    {
                         wmi.SetPptLimit(_attrNvTgp, maxTgp.Value);
+                        nvAttrWritten = true;
+                    }
                     if (boost != null && _attrGpuBoost != null)
+                    {
                         wmi.SetPptLimit(_attrGpuBoost, boost.Value);
+                        nvAttrWritten = true;
+                    }
                     if (temp != null && _attrGpuTemp != null)
+                    {
                         wmi.SetPptLimit(_attrGpuTemp, temp.Value);
+                        nvAttrWritten = true;
+                    }
+
+                    if (nvAttrWritten)
+                        Gpu.GPUModeControl.RefreshNvidiaPowerd();
                 }
                 if (nv != null && nv.IsAvailable())
                 {
@@ -2139,10 +2155,13 @@ public partial class FansWindow : Window
             {
                 if (wmi != null)
                 {
-                    WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvBaseTgp);
-                    WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTgp);
-                    WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvDynamicBoost);
-                    WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTempTarget);
+                    bool nvAttrWritten = WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvBaseTgp);
+                    nvAttrWritten |= WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTgp);
+                    nvAttrWritten |= WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvDynamicBoost);
+                    nvAttrWritten |= WriteFwAttrDefault(wmi, Platform.Linux.AsusAttributes.NvTempTarget);
+
+                    if (nvAttrWritten)
+                        Gpu.GPUModeControl.RefreshNvidiaPowerd();
                 }
                 if (nv != null && nv.IsAvailable())
                 {
@@ -2168,14 +2187,16 @@ public partial class FansWindow : Window
         });
     }
 
-    private static void WriteFwAttrDefault(Platform.IHardwareControl wmi, Platform.Linux.AttrDef attr)
+    /// <summary>Returns true when the attribute was actually written.</summary>
+    private static bool WriteFwAttrDefault(Platform.IHardwareControl wmi, Platform.Linux.AttrDef attr)
     {
         if (!wmi.IsFeatureSupported(attr))
-            return;
+            return false;
         var range = wmi.GetAttributeRange(attr);
         if (range == null || range.Default <= 0)
-            return;
+            return false;
         wmi.SetPptLimit(attr, range.Default);
+        return true;
     }
 
     private void ButtonCpuReset_Click(object? sender, RoutedEventArgs e)

@@ -93,6 +93,7 @@ public sealed class FakeAsusWmi : IHardwareControl
     public bool SetPanelOverdrive(bool enabled) => true;
     public int GetMiniLedMode() => 0;
     public void SetMiniLedMode(int mode) { }
+    public int GetMiniLedModeCount() => 0;
     public int GetScreenAutoBrightness() => -1;
     public void SetScreenAutoBrightness(bool enabled) { }
     public void SetPptLimit(string attribute, int watts) { }

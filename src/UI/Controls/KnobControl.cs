@@ -50,7 +50,7 @@ public sealed class KnobControl : Control
 {
     // ---- Public bindable-ish state (no DPs, callers set + invalidate) ----
 
-    public int Minimum { get; set; } = 0;
+    public int Minimum { get; set; }
     public int Maximum { get; set; } = 2000;
     public int DefaultValue { get; set; } = 1000;
     public int WheelStep { get; set; } = 25;       // ~2.5% per notch

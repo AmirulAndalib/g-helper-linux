@@ -22,7 +22,7 @@
  *       systemctl stop, user service via runuser ... systemctl --user stop) so
  *       it cannot respawn, then send the signal to the pid regardless.
  *
- *   daemon <stop|start|reset-failed> <nvidia-powerd|nvidia-persistenced>
+ *   daemon <stop|start|reset-failed|try-restart> <nvidia-powerd|nvidia-persistenced>
  *       systemctl <verb> <unit> for the two NVIDIA daemons only.
  *
  *   rmmod <module>
@@ -192,6 +192,8 @@ int main(int argc, char **argv)
             return do_egl_vendor(argc, argv);
         if (strcmp(argv[1], "drm-notify-remove") == 0)
             return do_drm_notify_remove(argc, argv);
+        if (strcmp(argv[1], "nvidia-refcnt-holders") == 0)
+            return do_nvidia_refcnt_holders();
         if (strcmp(argv[1], "smi") == 0)
             return do_smi(argc, argv);
         if (strcmp(argv[1], "modprobe") == 0)

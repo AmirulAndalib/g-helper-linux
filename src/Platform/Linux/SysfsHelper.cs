@@ -648,6 +648,43 @@ public static class SysfsHelper
         }
     }
 
+    /// <summary>Connected display names under a PCI GPU's DRM card.</summary>
+    public static List<string> FindConnectedDisplays(string gpuSysPath)
+    {
+        var result = new List<string>();
+        try
+        {
+            string drmDir = Path.Combine(gpuSysPath, "drm");
+            if (!Directory.Exists(drmDir))
+                return result;
+            foreach (var cardDir in Directory.GetDirectories(drmDir, "card*"))
+            {
+                foreach (var connDir in Directory.GetDirectories(cardDir))
+                {
+                    string name = Path.GetFileName(connDir);
+                    if (!name.Contains('-'))
+                        continue;
+                    string statusPath = Path.Combine(connDir, "status");
+                    string? status = ReadAttribute(statusPath);
+                    if (status == "connected")
+                    {
+                        int dash = name.IndexOf('-');
+                        result.Add(dash >= 0 ? name.Substring(dash + 1) : name);
+                    }
+                }
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    /// <summary>True if this PCI GPU has the internal panel (eDP) connected.</summary>
+    public static bool HasInternalDisplay(string gpuSysPath)
+    {
+        var displays = FindConnectedDisplays(gpuSysPath);
+        return displays.Any(d => d.StartsWith("eDP", StringComparison.OrdinalIgnoreCase));
+    }
+
     public static readonly string SudoPath = ResolveSudoPath();
 
     public static readonly string GpuHelperPath = ResolveGpuHelperPath();
