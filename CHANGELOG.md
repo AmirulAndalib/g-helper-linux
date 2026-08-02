@@ -17,7 +17,8 @@
 - Battery time-to-empty/full estimate and charge-based (uAh) battery support in Battery Info.
 - Wayland touchpad/touchscreen toggle via KWin D-Bus, GNOME gsettings, and COSMIC config.
 - SystemTelemetry helper and GpuQueryGate for gated GPU polling.
-- gpu-helper: drm_notify_remove and nvidia_refcnt_holders commands.
+- gpu-helper: drm_notify_remove, nvidia_refcnt_holders, and NVML MPS client process scanning.
+- System GPU holders now logged separately during Eco switches (nvidia-powerd, compositors, portals etc.).
 - SysfsHelper: FindConnectedDisplays and HasInternalDisplay for DRM topology.
 - Changelog button in Updates window.
 
