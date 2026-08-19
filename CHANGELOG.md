@@ -8,6 +8,20 @@
 
 ### Changed
 
+## v1.0.91 (2026-08-19)
+
+### Added
+
+- XG Mobile: dock panel hints to add `pcie_port_pm=off` when live switching hangs (#171).
+
+### Fixed
+
+- udev rules return success when a node is absent, so systemd-udevd stops logging false RUN failures (#165, thanks @tlamoureux24).
+
+### Changed
+
+- Svg.Controls.Skia.Avalonia 12.0.0.15, ILCompiler 10.0.10.
+
 ## v1.0.90 (2026-08-02)
 
 ### Added
