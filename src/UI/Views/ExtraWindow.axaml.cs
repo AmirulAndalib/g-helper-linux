@@ -224,6 +224,7 @@ public partial class ExtraWindow : Window
         labelXgmHeader.Text = Labels.Get("xgm_extra_header");
         checkXGMLights.Content = Labels.Get("xgm_extra_lights_label");
         labelXgmBrightnessLabel.Text = Labels.Get("xgm_extra_brightness_label");
+        labelXgmPciePmHint.Text = Labels.Get("xgm_pcie_pm_hint");
         InitXgmPanel();
         checkNvidiaPowerdBattery.Content = Labels.Get("nvidia_powerd_battery");
         InitNvidiaPowerdBattery();

@@ -126,13 +126,13 @@
   },
   {
     "pname": "Microsoft.DotNet.ILCompiler",
-    "version": "10.0.9",
-    "hash": "sha256-/lk5pFop4Z70fx34WRlyEHA9gEtzx05C24ha3pezgXo="
+    "version": "10.0.10",
+    "hash": "sha256-0zo0jQSdcdRk7caJsfFsu+v18lTLFIxqkVTf1QWqg3g="
   },
   {
     "pname": "Microsoft.NET.ILLink.Tasks",
-    "version": "10.0.9",
-    "hash": "sha256-i83w0RDOcaHz6I7jIAjR2abJtQwn5N8ePu1ySqh/4S4="
+    "version": "10.0.10",
+    "hash": "sha256-l6DsogMJAXOPBw8UKq8Cs7GurSvJhMCMQohHkQtL4xI="
   },
   {
     "pname": "ShimSkiaSharp",
