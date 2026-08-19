@@ -2594,7 +2594,7 @@ public partial class ExtraWindow : Window
     private void InitXgmPanel()
     {
         bool present = USB.XGM.IsLightAvailable();
-        panelXGM.IsVisible = present;
+        panelXGM.IsVisible = present || Helpers.AppConfig.Is("show_xgm_dev");
         if (!present)
             return;
 
