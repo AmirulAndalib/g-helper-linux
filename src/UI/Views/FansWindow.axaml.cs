@@ -600,6 +600,7 @@ public partial class FansWindow : Window
         (Platform.Linux.LenovoAttributes.PptPl4Ipl, "Peak (PL4)", "W"),
         (Platform.Linux.LenovoAttributes.PptTau, "Tau", "s"),
         (Platform.Linux.LenovoAttributes.PptCpuCl, "CPU Cross-Load", "W"),
+        (Platform.Linux.LenovoAttributes.CpuTemp, "CPU Temp", "C"),
         (Platform.Linux.LenovoAttributes.PptPl1SplCl, "PL1 (CL)", "W"),
         (Platform.Linux.LenovoAttributes.PptPl2SpptCl, "PL2 (CL)", "W"),
         (Platform.Linux.LenovoAttributes.PptPl3FpptCl, "FPPT (CL)", "W"),

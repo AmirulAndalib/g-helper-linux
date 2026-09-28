@@ -97,7 +97,8 @@ public static class BatteryControl
         else if (App.Wmi is Platform.Linux.Lenovo.LinuxLenovoWmi lw
             && lw.UsesConservationFallback)
         {
-            limit = limit <= 60 ? 60 : 100;
+            int cap = Platform.Linux.Lenovo.LinuxLenovoWmi.ConservationCap;
+            limit = limit <= cap ? cap : 100;
         }
 
         bool ok = App.Wmi?.SetBatteryChargeLimit(limit) ?? false;

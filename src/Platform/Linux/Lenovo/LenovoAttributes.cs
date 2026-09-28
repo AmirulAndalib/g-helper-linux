@@ -24,6 +24,9 @@ public static class LenovoAttributes
     public static readonly AttrDef PptCpuCl = new("ppt_cpu_cl",
         description: "CPU cross-loading power limit");
 
+    public static readonly AttrDef CpuTemp = new("cpu_temp",
+        description: "CPU thermal limit (kernel 7.2+)");
+
     // Cross-loading variants (combined CPU+GPU budget)
 
     public static readonly AttrDef PptPl1SplCl = new("ppt_pl1_spl_cl",
@@ -67,7 +70,7 @@ public static class LenovoAttributes
 
     public static readonly AttrDef[] All =
     {
-        PptApuSpl, PptPl4Ipl, PptTau, PptCpuCl,
+        PptApuSpl, PptPl4Ipl, PptTau, PptCpuCl, CpuTemp,
         PptPl1SplCl, PptPl2SpptCl, PptPl3FpptCl, PptPl4IplCl,
         GpuNvCtgp, GpuNvPpab, GpuTemp,
         DgpuBoostClk, GpuNvCpuBoost, GpuNvAcOffset, GpuNvBpl,

@@ -1239,6 +1239,8 @@ public partial class ExtraWindow : Window
         checkLenovoConservation.IsVisible = hasConservation;
         if (hasConservation)
         {
+            checkLenovoConservation.Content =
+                $"Battery conservation mode (cap charge at ~{Platform.Linux.Lenovo.LinuxLenovoWmi.ConservationCap}%)";
             checkLenovoConservation.IsChecked = Platform.Linux.Lenovo.LenovoFeatures.IsConservationActive();
             any = true;
         }
@@ -1312,8 +1314,8 @@ public partial class ExtraWindow : Window
             return;
         bool on = checkLenovoConservation.IsChecked ?? false;
         // Route through BatteryControl so the charge_limit config + main
-        // window slider stay coherent (60 = conservation, 100 = standard).
-        Battery.BatteryControl.SetBatteryChargeLimit(on ? 60 : 100);
+        // window slider stay coherent (cap = conservation, 100 = standard).
+        Battery.BatteryControl.SetBatteryChargeLimit(on ? Platform.Linux.Lenovo.LinuxLenovoWmi.ConservationCap : 100);
         _suppressEvents = true;
         RefreshLenovo();
         _suppressEvents = false;

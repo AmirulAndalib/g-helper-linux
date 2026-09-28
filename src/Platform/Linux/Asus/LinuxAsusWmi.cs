@@ -1589,6 +1589,7 @@ public class LinuxAsusWmi : IHardwareControl
         return scanCode switch
         {
             56 => "m4",    // ROG/M4/M5 button (Windows event 0x38)
+            139 => "m4",   // ProArt key (0x8B); kernel 7.3 sends KEY_PROG3, the Fn+F4 keycode
             179 => "fnf4", // Fn+F4 Aura key (Windows event 0xB3)
             174 => "fnf5", // Fn+F5 performance cycle (Windows event 0xAE)
             _ => ""

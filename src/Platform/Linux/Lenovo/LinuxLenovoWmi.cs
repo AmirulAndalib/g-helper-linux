@@ -13,9 +13,9 @@ namespace GHelper.Linux.Platform.Linux.Lenovo;
 ///   Fan RPM: hwmon lenovo_wmi_other / yogafan / acpi_fan (fan{N}_input).
 ///   Fan curves: no mainline interface - reported unsupported.
 ///
-///   Battery: charge_control_end_threshold when present, else the ideapad
-///     battery extension charge_types (Long_Life = conservation ~60% cap),
-///     else the deprecated conservation_mode attribute.
+///   Battery: charge_control_end_threshold when present, else the battery
+///     extension charge_types (Long_Life = ~60% cap from ideapad, 80% from
+///     lenovo-wmi-other on kernel 7.2+), else the deprecated conservation_mode.
 ///
 ///   PPT power limits: /sys/class/firmware-attributes/lenovo-wmi-other-0/
 ///     attributes/{ppt_pl1_spl,ppt_pl2_sppt,ppt_pl3_fppt}/current_value.
@@ -226,28 +226,34 @@ public class LinuxLenovoWmi : IHardwareControl
             }
         }
 
-        // ideapad battery extension: Long_Life == conservation mode (~60% cap).
-        // charge_types reads as e.g. "Standard [Long_Life]" with the active
-        // type in brackets.
+        // Battery extension: Long_Life == conservation mode. charge_types reads
+        // as e.g. "Standard [Long_Life]" with the active type in brackets.
         var chargeTypes = LenovoSysfs.BatteryChargeTypes();
         if (chargeTypes != null)
         {
             string? raw = SysfsHelper.ReadAttribute(chargeTypes);
             if (raw != null)
-                return raw.Contains("[Long_Life]") ? 60 : 100;
+                return raw.Contains("[Long_Life]") ? ConservationCap : 100;
         }
 
         // Deprecated ideapad attribute
         var conservation = LenovoSysfs.IdeapadAttr("conservation_mode");
         if (conservation != null)
-            return SysfsHelper.ReadInt(conservation, 0) == 1 ? 60 : 100;
+            return SysfsHelper.ReadInt(conservation, 0) == 1 ? ConservationCap : 100;
 
         return -1;
     }
 
-    /// <summary>True when only the conservation toggle (fixed ~60% cap)
-    /// backs the charge limit: no native percent threshold file. The
-    /// charge-limit slider then snaps to the two real outcomes (60/100).</summary>
+    /// <summary>Long_Life cap. ideapad (~60%) always exposes conservation_mode
+    /// next to charge_types; lenovo-wmi-other (80%, kernel 7.2+) only
+    /// registers charge_types when ideapad lacks the feature.</summary>
+    public static int ConservationCap =>
+        LenovoSysfs.IdeapadAttr("conservation_mode") == null
+        && LenovoSysfs.BatteryChargeTypes() != null ? 80 : 60;
+
+    /// <summary>True when only the conservation toggle (fixed cap) backs the
+    /// charge limit: no native percent threshold file. The charge-limit
+    /// slider then snaps to the two real outcomes (ConservationCap/100).</summary>
     public bool UsesConservationFallback =>
         (_batteryDir == null
             || !File.Exists(Path.Combine(_batteryDir, "charge_control_end_threshold")))
@@ -265,9 +271,9 @@ public class LinuxLenovoWmi : IHardwareControl
                 return SysfsHelper.WriteInt(path, percent);
         }
 
-        // Conservation mode is a fixed ~60% cap: enable it for any requested
-        // limit at or below 60, disable for anything above.
-        bool conserve = percent <= 60;
+        // Conservation mode is a fixed cap: enable it for any requested limit
+        // at or below the cap, disable for anything above.
+        bool conserve = percent <= ConservationCap;
 
         var chargeTypes = LenovoSysfs.BatteryChargeTypes();
         if (chargeTypes != null)
