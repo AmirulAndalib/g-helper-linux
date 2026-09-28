@@ -40,6 +40,9 @@
       side-effect-free.
     -->
     <Compile Include="*.cs" />
+    <Compile Include="../../src/Display/XrandrBackend.cs" />
+    <Compile Include="../../src/Display/IDisplayBackend.cs" />
+    <Compile Include="../../src/USB/TufEcLighting.cs" />
 
     <Compile Include="../../src/Gpu/GPUModeControl.cs" />
     <Compile Include="../../src/Gpu/NVidia/GpuQueryGate.cs" />

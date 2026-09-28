@@ -19,25 +19,30 @@ public class XrandrBackend : IDisplayBackend
         if (displayName == null)
             return -1;
 
-        var output = SysfsHelper.RunCommand("xrandr", $"--output {displayName} --verbose");
-        if (string.IsNullOrEmpty(output))
-        {
-            output = SysfsHelper.RunCommand("xrandr", "");
-            if (output == null)
-                return -1;
-        }
+        // --verbose uses a different mode format and still lists every output.
+        var output = SysfsHelper.RunCommand("xrandr", "--query");
+        if (output == null)
+            return -1;
 
+        return ParseRefreshRate(output, displayName);
+    }
+
+    internal static int ParseRefreshRate(string output, string displayName)
+    {
+        bool selected = false;
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains('*'))
+            if (line.Length > 0 && !char.IsWhiteSpace(line[0]))
             {
-                var match = Regex.Match(line, @"(\d+\.\d+)\*");
-                if (match.Success && double.TryParse(match.Groups[1].Value,
-                    CultureInfo.InvariantCulture, out double hz))
-                {
-                    return (int)Math.Round(hz);
-                }
+                selected = line.StartsWith(displayName + " connected", StringComparison.Ordinal);
+                continue;
             }
+            if (!selected)
+                continue;
+            var match = Regex.Match(line, @"(\d+(?:\.\d+)?)\*");
+            if (match.Success && double.TryParse(match.Groups[1].Value,
+                CultureInfo.InvariantCulture, out double hz))
+                return (int)Math.Round(hz);
         }
 
         return -1;
@@ -57,7 +62,7 @@ public class XrandrBackend : IDisplayBackend
         bool foundDisplay = false;
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains(displayName) && line.Contains(" connected"))
+            if (line.StartsWith(displayName + " connected", StringComparison.Ordinal))
             {
                 foundDisplay = true;
                 continue;
@@ -113,7 +118,7 @@ public class XrandrBackend : IDisplayBackend
 
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains(displayName) && line.Contains(" connected"))
+            if (line.StartsWith(displayName + " connected", StringComparison.Ordinal))
             {
                 foundDisplay = true;
                 continue;
@@ -185,33 +190,36 @@ public class XrandrBackend : IDisplayBackend
 
     /// <summary>
     /// Get the primary/laptop display output name from xrandr.
-    /// Priority: eDP-* > LVDS-* > first connected
+    /// Priority: explicit panel connector > eDP/LVDS > first active output
     /// </summary>
     internal static string? GetPrimaryOutput()
     {
-        var output = SysfsHelper.RunCommand("xrandr", "--query");
+        var output = SysfsHelper.RunCommand("xrandr", "--prop");
         if (output == null)
             return null;
 
-        string? primary = null;
+        return SelectOutput(output);
+    }
+
+    internal static string? SelectOutput(string output)
+    {
+        string? panel = null;
+        string? namedPanel = null;
         string? firstConnected = null;
-
-        foreach (var line in output.Split('\n'))
+        foreach (string block in Regex.Split(output, @"(?=^\S+ (?:dis)?connected\b)", RegexOptions.Multiline))
         {
-            if (!line.Contains(" connected"))
+            string header = block.Split('\n')[0];
+            if (!Regex.IsMatch(header, @"^\S+ connected\b") ||
+                !Regex.IsMatch(header, @"\b\d+x\d+[+-]\d+[+-]\d+"))
                 continue;
-
-            var outputName = line.Split(' ')[0];
-
-            if (outputName.StartsWith("eDP", StringComparison.OrdinalIgnoreCase))
-                return outputName;
-
-            if (outputName.StartsWith("LVDS", StringComparison.OrdinalIgnoreCase))
-                primary ??= outputName;
-
-            firstConnected ??= outputName;
+            string name = header.Split(' ')[0];
+            firstConnected ??= name;
+            if (Regex.IsMatch(block, @"^\s+ConnectorType:\s+Panel\s*$", RegexOptions.Multiline))
+                panel ??= name;
+            if (name.StartsWith("eDP", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("LVDS", StringComparison.OrdinalIgnoreCase))
+                namedPanel ??= name;
         }
-
-        return primary ?? firstConnected;
+        return panel ?? namedPanel ?? firstConnected;
     }
 }

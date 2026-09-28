@@ -1179,7 +1179,14 @@ public class App : Application
 
             // Restore keyboard brightness (firmware may reset on suspend).
             try
-            { USB.Aura.ApplyConfiguredBrightness("Resume"); }
+            {
+                if (USB.Aura.RestoreEcLighting())
+                {
+                    USB.Aura.ApplyPower();
+                    USB.Aura.ApplyAura();
+                }
+                USB.Aura.ApplyConfiguredBrightness("Resume");
+            }
             catch { }
 
             // Firmware may drop M-key EC bindings across suspend.

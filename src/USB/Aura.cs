@@ -529,6 +529,22 @@ public static class Aura
             AsusHid.WriteInput(new byte[] { AsusHid.INPUT_ID, 0xD0, 0x8F, 0x01 }, "ProArt Init");
             AsusHid.WriteInput(new byte[] { AsusHid.INPUT_ID, 0xD0, 0x85, 0xFF }, "ProArt Init");
         }
+
+        RestoreEcLighting();
+    }
+
+    /// <summary>Enable the EC lighting path on FA608UHI's I2C-HID controller.</summary>
+    public static bool RestoreEcLighting()
+    {
+        return TufEcLighting.Restore(AppConfig.GetModel(), report =>
+        {
+            // HidSharp skips I2C devices; use hidraw for the ASUS 0x19B6 controller.
+            bool restored = HidrawHelper.WriteAllForPids(report[0], report, [0x19B6],
+                reportSize: report.Length, log: "FA608UHI EC lighting init");
+            if (!restored)
+                Logger.WriteLine("FA608UHI EC lighting init failed; check hidraw permissions/device availability");
+            return restored;
+        });
     }
 
     /// <summary>
