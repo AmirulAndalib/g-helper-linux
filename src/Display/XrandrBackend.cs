@@ -71,8 +71,10 @@ public class XrandrBackend : IDisplayBackend
                 }
 
                 // Properties (EDID, gamma, ranges) also contain numbers.
-                // Only parse refresh tokens following a mode name.
-                var mode = Regex.Match(line, @"^ {3}\S+\s+((?:\d+(?:\.\d+)?[*+\s]*)+)$");
+                // Only parse refresh tokens following a mode name. Each rate
+                // needs a leading separator so non-matching lines fail in
+                // linear time (no nested empty-capable quantifier).
+                var mode = Regex.Match(line, @"^ {3}\S+((?:[ *+]+\d+(?:\.\d+)?)+)[ *+]*$");
                 if (!mode.Success)
                     continue;
                 var matches = Regex.Matches(mode.Groups[1].Value, @"\d+(?:\.\d+)?");
