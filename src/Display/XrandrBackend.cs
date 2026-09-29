@@ -15,29 +15,29 @@ public class XrandrBackend : IDisplayBackend
 
     public int GetRefreshRate()
     {
-        var displayName = GetPrimaryOutput();
-        if (displayName == null)
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
+        if (output == null)
             return -1;
+        var displayName = SelectOutput(output);
+        return displayName == null ? -1 : ParseRefreshRate(output, displayName);
+    }
 
-        var output = SysfsHelper.RunCommand("xrandr", $"--output {displayName} --verbose");
-        if (string.IsNullOrEmpty(output))
-        {
-            output = SysfsHelper.RunCommand("xrandr", "");
-            if (output == null)
-                return -1;
-        }
-
+    internal static int ParseRefreshRate(string output, string displayName)
+    {
+        bool selected = false;
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains('*'))
+            if (line.Length > 0 && !char.IsWhiteSpace(line[0]))
             {
-                var match = Regex.Match(line, @"(\d+\.\d+)\*");
-                if (match.Success && double.TryParse(match.Groups[1].Value,
-                    CultureInfo.InvariantCulture, out double hz))
-                {
-                    return (int)Math.Round(hz);
-                }
+                selected = line.StartsWith(displayName + " connected", StringComparison.Ordinal);
+                continue;
             }
+            if (!selected)
+                continue;
+            var match = Regex.Match(line, @"(\d+(?:\.\d+)?)\*");
+            if (match.Success && double.TryParse(match.Groups[1].Value,
+                CultureInfo.InvariantCulture, out double hz))
+                return (int)Math.Round(hz);
         }
 
         return -1;
@@ -46,18 +46,17 @@ public class XrandrBackend : IDisplayBackend
     public List<int> GetAvailableRefreshRates()
     {
         var rates = new List<int>();
-        var displayName = GetPrimaryOutput();
-        if (displayName == null)
-            return rates;
-
-        var output = SysfsHelper.RunCommand("xrandr", "");
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
         if (output == null)
+            return rates;
+        var displayName = SelectOutput(output);
+        if (displayName == null)
             return rates;
 
         bool foundDisplay = false;
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains(displayName) && line.Contains(" connected"))
+            if (line.StartsWith(displayName + " connected", StringComparison.Ordinal))
             {
                 foundDisplay = true;
                 continue;
@@ -71,10 +70,15 @@ public class XrandrBackend : IDisplayBackend
                         break;
                 }
 
-                var matches = Regex.Matches(line, @"(\d+\.\d+)");
+                // Properties (EDID, gamma, ranges) also contain numbers.
+                // Only parse refresh tokens following a mode name.
+                var mode = Regex.Match(line, @"^ {3}\S+\s+((?:\d+(?:\.\d+)?[*+\s]*)+)$");
+                if (!mode.Success)
+                    continue;
+                var matches = Regex.Matches(mode.Groups[1].Value, @"\d+(?:\.\d+)?");
                 foreach (Match match in matches)
                 {
-                    if (double.TryParse(match.Groups[1].Value,
+                    if (double.TryParse(match.Value,
                         CultureInfo.InvariantCulture, out double hz))
                     {
                         int intHz = (int)Math.Round(hz);
@@ -92,7 +96,13 @@ public class XrandrBackend : IDisplayBackend
 
     public void SetRefreshRate(int hz)
     {
-        var displayName = GetPrimaryOutput();
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
+        if (output == null)
+        {
+            Helpers.Logger.WriteLine("Xrandr.SetRefreshRate: xrandr query returned null");
+            return;
+        }
+        var displayName = SelectOutput(output);
         if (displayName == null)
         {
             Helpers.Logger.WriteLine("Xrandr.SetRefreshRate: no primary output found");
@@ -101,19 +111,12 @@ public class XrandrBackend : IDisplayBackend
 
         Helpers.Logger.WriteLine($"Xrandr.SetRefreshRate: requesting {hz}Hz on {displayName}");
 
-        var output = SysfsHelper.RunCommand("xrandr", "");
-        if (output == null)
-        {
-            Helpers.Logger.WriteLine("Xrandr.SetRefreshRate: xrandr query returned null");
-            return;
-        }
-
         string? currentResolution = null;
         bool foundDisplay = false;
 
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains(displayName) && line.Contains(" connected"))
+            if (line.StartsWith(displayName + " connected", StringComparison.Ordinal))
             {
                 foundDisplay = true;
                 continue;
@@ -185,33 +188,40 @@ public class XrandrBackend : IDisplayBackend
 
     /// <summary>
     /// Get the primary/laptop display output name from xrandr.
-    /// Priority: eDP-* > LVDS-* > first connected
+    /// Priority: connected explicit panel > eDP/LVDS > first active output
+    /// > first connected output. Keep inactive panels selected so automatic
+    /// refresh changes do not target an external display when the lid is closed.
     /// </summary>
     internal static string? GetPrimaryOutput()
     {
-        var output = SysfsHelper.RunCommand("xrandr", "--query");
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
         if (output == null)
             return null;
 
-        string? primary = null;
+        return SelectOutput(output);
+    }
+
+    internal static string? SelectOutput(string output)
+    {
+        string? panel = null;
+        string? namedPanel = null;
         string? firstConnected = null;
-
-        foreach (var line in output.Split('\n'))
+        string? firstActive = null;
+        foreach (string block in Regex.Split(output, @"(?=^\S+ (?:dis)?connected\b)", RegexOptions.Multiline))
         {
-            if (!line.Contains(" connected"))
+            string header = block.Split('\n')[0];
+            if (!Regex.IsMatch(header, @"^\S+ connected\b"))
                 continue;
-
-            var outputName = line.Split(' ')[0];
-
-            if (outputName.StartsWith("eDP", StringComparison.OrdinalIgnoreCase))
-                return outputName;
-
-            if (outputName.StartsWith("LVDS", StringComparison.OrdinalIgnoreCase))
-                primary ??= outputName;
-
-            firstConnected ??= outputName;
+            string name = header.Split(' ')[0];
+            firstConnected ??= name;
+            if (Regex.IsMatch(header, @"\b\d+x\d+[+-]\d+[+-]\d+"))
+                firstActive ??= name;
+            if (Regex.IsMatch(block, @"^\s+ConnectorType:\s+Panel\s*$", RegexOptions.Multiline))
+                panel ??= name;
+            if (name.StartsWith("eDP", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("LVDS", StringComparison.OrdinalIgnoreCase))
+                namedPanel ??= name;
         }
-
-        return primary ?? firstConnected;
+        return panel ?? namedPanel ?? firstActive ?? firstConnected;
     }
 }
