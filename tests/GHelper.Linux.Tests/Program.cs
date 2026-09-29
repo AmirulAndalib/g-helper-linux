@@ -26,7 +26,6 @@ public static class Program
         {
             Scenarios.RunAll();
             ManualFanTests.RunAll();
-            TufEcLightingTests.RunAll();
             XrandrPanelTests.RunAll();
         }
         finally

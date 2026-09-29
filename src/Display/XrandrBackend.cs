@@ -15,16 +15,11 @@ public class XrandrBackend : IDisplayBackend
 
     public int GetRefreshRate()
     {
-        var displayName = GetPrimaryOutput();
-        if (displayName == null)
-            return -1;
-
-        // --verbose uses a different mode format and still lists every output.
-        var output = SysfsHelper.RunCommand("xrandr", "--query");
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
         if (output == null)
             return -1;
-
-        return ParseRefreshRate(output, displayName);
+        var displayName = SelectOutput(output);
+        return displayName == null ? -1 : ParseRefreshRate(output, displayName);
     }
 
     internal static int ParseRefreshRate(string output, string displayName)
@@ -51,12 +46,11 @@ public class XrandrBackend : IDisplayBackend
     public List<int> GetAvailableRefreshRates()
     {
         var rates = new List<int>();
-        var displayName = GetPrimaryOutput();
-        if (displayName == null)
-            return rates;
-
-        var output = SysfsHelper.RunCommand("xrandr", "");
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
         if (output == null)
+            return rates;
+        var displayName = SelectOutput(output);
+        if (displayName == null)
             return rates;
 
         bool foundDisplay = false;
@@ -76,10 +70,15 @@ public class XrandrBackend : IDisplayBackend
                         break;
                 }
 
-                var matches = Regex.Matches(line, @"(\d+\.\d+)");
+                // Properties (EDID, gamma, ranges) also contain numbers.
+                // Only parse refresh tokens following a mode name.
+                var mode = Regex.Match(line, @"^ {3}\S+\s+((?:\d+(?:\.\d+)?[*+\s]*)+)$");
+                if (!mode.Success)
+                    continue;
+                var matches = Regex.Matches(mode.Groups[1].Value, @"\d+(?:\.\d+)?");
                 foreach (Match match in matches)
                 {
-                    if (double.TryParse(match.Groups[1].Value,
+                    if (double.TryParse(match.Value,
                         CultureInfo.InvariantCulture, out double hz))
                     {
                         int intHz = (int)Math.Round(hz);
@@ -97,7 +96,13 @@ public class XrandrBackend : IDisplayBackend
 
     public void SetRefreshRate(int hz)
     {
-        var displayName = GetPrimaryOutput();
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
+        if (output == null)
+        {
+            Helpers.Logger.WriteLine("Xrandr.SetRefreshRate: xrandr query returned null");
+            return;
+        }
+        var displayName = SelectOutput(output);
         if (displayName == null)
         {
             Helpers.Logger.WriteLine("Xrandr.SetRefreshRate: no primary output found");
@@ -105,13 +110,6 @@ public class XrandrBackend : IDisplayBackend
         }
 
         Helpers.Logger.WriteLine($"Xrandr.SetRefreshRate: requesting {hz}Hz on {displayName}");
-
-        var output = SysfsHelper.RunCommand("xrandr", "");
-        if (output == null)
-        {
-            Helpers.Logger.WriteLine("Xrandr.SetRefreshRate: xrandr query returned null");
-            return;
-        }
 
         string? currentResolution = null;
         bool foundDisplay = false;
@@ -190,11 +188,13 @@ public class XrandrBackend : IDisplayBackend
 
     /// <summary>
     /// Get the primary/laptop display output name from xrandr.
-    /// Priority: explicit panel connector > eDP/LVDS > first active output
+    /// Priority: connected explicit panel > eDP/LVDS > first active output
+    /// > first connected output. Keep inactive panels selected so automatic
+    /// refresh changes do not target an external display when the lid is closed.
     /// </summary>
     internal static string? GetPrimaryOutput()
     {
-        var output = SysfsHelper.RunCommand("xrandr", "--prop");
+        var output = SysfsHelper.RunCommand("xrandr", "--current --prop");
         if (output == null)
             return null;
 
@@ -206,20 +206,22 @@ public class XrandrBackend : IDisplayBackend
         string? panel = null;
         string? namedPanel = null;
         string? firstConnected = null;
+        string? firstActive = null;
         foreach (string block in Regex.Split(output, @"(?=^\S+ (?:dis)?connected\b)", RegexOptions.Multiline))
         {
             string header = block.Split('\n')[0];
-            if (!Regex.IsMatch(header, @"^\S+ connected\b") ||
-                !Regex.IsMatch(header, @"\b\d+x\d+[+-]\d+[+-]\d+"))
+            if (!Regex.IsMatch(header, @"^\S+ connected\b"))
                 continue;
             string name = header.Split(' ')[0];
             firstConnected ??= name;
+            if (Regex.IsMatch(header, @"\b\d+x\d+[+-]\d+[+-]\d+"))
+                firstActive ??= name;
             if (Regex.IsMatch(block, @"^\s+ConnectorType:\s+Panel\s*$", RegexOptions.Multiline))
                 panel ??= name;
             if (name.StartsWith("eDP", StringComparison.OrdinalIgnoreCase) ||
                 name.StartsWith("LVDS", StringComparison.OrdinalIgnoreCase))
                 namedPanel ??= name;
         }
-        return panel ?? namedPanel ?? firstConnected;
+        return panel ?? namedPanel ?? firstActive ?? firstConnected;
     }
 }

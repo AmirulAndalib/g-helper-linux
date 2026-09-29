@@ -6,9 +6,6 @@
 
 ### Fixed
 
-- FA608UHI keyboard lighting restores firmware control at startup and after resume.
-- X11 display controls select NVIDIA panel connectors and read the selected display's refresh rate.
-
 ### Changed
 
 ## v1.0.93 (2026-09-18)

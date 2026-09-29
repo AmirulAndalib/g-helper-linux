@@ -1177,17 +1177,26 @@ public class App : Application
             if (savedOd >= 0)
                 Wmi?.SetPanelOverdrive(savedOd == 1);
 
-            // Restore keyboard brightness (firmware may reset on suspend).
+            // Firmware can reset autonomous lighting control across suspend.
+            // Reapply saved settings even if the feature report fails.
+            try
+            { USB.HidrawHelper.DisableBacklightOobe(); }
+            catch (Exception ex) { Logger.WriteLine("Backlight OOBE restore on resume failed", ex); }
+
+            try
+            { USB.Aura.ApplyPower(); }
+            catch (Exception ex) { Logger.WriteLine("Keyboard power restore on resume failed", ex); }
+
+            try
+            { USB.Aura.ApplyAura(); }
+            catch (Exception ex) { Logger.WriteLine("Keyboard lighting restore on resume failed", ex); }
+
+            // Restore brightness independently of mode/power failures.
             try
             {
-                if (USB.Aura.RestoreEcLighting())
-                {
-                    USB.Aura.ApplyPower();
-                    USB.Aura.ApplyAura();
-                }
                 USB.Aura.ApplyConfiguredBrightness("Resume");
             }
-            catch { }
+            catch (Exception ex) { Logger.WriteLine("Keyboard brightness restore on resume failed", ex); }
 
             // Firmware may drop M-key EC bindings across suspend.
             try

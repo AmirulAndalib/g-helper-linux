@@ -165,8 +165,6 @@ public static class Aura
     // which is the one that actually works.
     private static bool _isACPI = AppConfig.IsTUF() || AppConfig.IsVivoZenPro();
 
-    private static bool _oobeDisabled;
-
     // Hardware-detected state (populated by DetectBacklightType())
     //
     // When the AURA capability probe succeeds, these describe the actual zones
@@ -496,12 +494,6 @@ public static class Aura
     /// </summary>
     public static void Init()
     {
-        if (!_oobeDisabled)
-        {
-            HidrawHelper.DisableBacklightOobe();
-            _oobeDisabled = true;
-        }
-
         // Modern AURA firmware prefers feature-report transport over output
         // writes for the handshake (matches Armoury Crate and asusctl). Capability
         // probe (0x05 0x20 0x31 0 0x20) runs from DetectBacklightType() below.
@@ -520,6 +512,10 @@ public static class Aura
         if (AppConfig.IsDynamicLighting())
             AsusHid.Write([AsusHid.AURA_ID, 0xC0, 0x03, 0x01], "Dynamic Lighting Init");
 
+        // Dynamic Lighting init can reset autonomous backlight control.
+        // Restore it afterwards, including on subsequent initialization attempts.
+        HidrawHelper.DisableBacklightOobe();
+
         // ProArt models need a separate INPUT_ID handshake to wake their
         // RGB controller.
         if (AppConfig.IsProArt())
@@ -529,22 +525,6 @@ public static class Aura
             AsusHid.WriteInput(new byte[] { AsusHid.INPUT_ID, 0xD0, 0x8F, 0x01 }, "ProArt Init");
             AsusHid.WriteInput(new byte[] { AsusHid.INPUT_ID, 0xD0, 0x85, 0xFF }, "ProArt Init");
         }
-
-        RestoreEcLighting();
-    }
-
-    /// <summary>Enable the EC lighting path on FA608UHI's I2C-HID controller.</summary>
-    public static bool RestoreEcLighting()
-    {
-        return TufEcLighting.Restore(AppConfig.GetModel(), report =>
-        {
-            // HidSharp skips I2C devices; use hidraw for the ASUS 0x19B6 controller.
-            bool restored = HidrawHelper.WriteAllForPids(report[0], report, [0x19B6],
-                reportSize: report.Length, log: "FA608UHI EC lighting init");
-            if (!restored)
-                Logger.WriteLine("FA608UHI EC lighting init failed; check hidraw permissions/device availability");
-            return restored;
-        });
     }
 
     /// <summary>
