@@ -165,6 +165,8 @@ public static class Aura
     // which is the one that actually works.
     private static bool _isACPI = AppConfig.IsTUF() || AppConfig.IsVivoZenPro();
 
+    private static bool _oobeDisabled;
+
     // Hardware-detected state (populated by DetectBacklightType())
     //
     // When the AURA capability probe succeeds, these describe the actual zones
@@ -494,6 +496,12 @@ public static class Aura
     /// </summary>
     public static void Init()
     {
+        if (!_oobeDisabled)
+        {
+            HidrawHelper.DisableBacklightOobe();
+            _oobeDisabled = true;
+        }
+
         // Modern AURA firmware prefers feature-report transport over output
         // writes for the handshake (matches Armoury Crate and asusctl). Capability
         // probe (0x05 0x20 0x31 0 0x20) runs from DetectBacklightType() below.
@@ -511,10 +519,6 @@ public static class Aura
         // path on those chassis needs the same handshake before lights respond.
         if (AppConfig.IsDynamicLighting())
             AsusHid.Write([AsusHid.AURA_ID, 0xC0, 0x03, 0x01], "Dynamic Lighting Init");
-
-        // Dynamic Lighting init can reset autonomous backlight control.
-        // Restore it afterwards, including on subsequent initialization attempts.
-        HidrawHelper.DisableBacklightOobe();
 
         // ProArt models need a separate INPUT_ID handshake to wake their
         // RGB controller.

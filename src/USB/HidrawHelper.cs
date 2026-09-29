@@ -577,29 +577,18 @@ public static class HidrawHelper
 
     public static void DisableBacklightOobe()
     {
-        lock (AsusHid.HidLock)
-            DisableBacklightOobeLocked();
-    }
-
-    private static void DisableBacklightOobeLocked()
-    {
         foreach (var dev in EnumerateAsusDevices())
         {
             if (dev.Product != 0x19B6 || !dev.IsI2C)
                 continue;
             int fd = open(dev.Path, O_RDWR);
             if (fd < 0)
-            {
-                Helpers.Logger.WriteLine($"HidrawHelper: cannot open {dev.Path} for backlight OOBE: errno={Marshal.GetLastPInvokeError()}");
                 continue;
-            }
             try
             {
                 byte[] buf = { 0x46, 0x01 };
                 if (ioctl(fd, HIDIOCSFEATURE(buf.Length), buf) >= 0)
                     Helpers.Logger.WriteLine($"HidrawHelper: backlight OOBE disabled on {dev.Path} PID=0x{dev.Product:X4}");
-                else
-                    Helpers.Logger.WriteLine($"HidrawHelper: backlight OOBE SetFeature failed on {dev.Path}: errno={Marshal.GetLastPInvokeError()}");
             }
             finally { close(fd); }
         }
