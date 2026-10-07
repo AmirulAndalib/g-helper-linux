@@ -20,7 +20,11 @@
   outputs = { self, nixpkgs }:
   let
     system = "x86_64-linux";
-    pkgs = nixpkgs.legacyPackages.${system};
+    # overlay.nix patches fetchNupkg so SkiaSharp >= 4.148.0 fetches build.
+    pkgs = import nixpkgs {
+      inherit system;
+      overlays = [ (import ./overlay.nix) ];
+    };
     packages = pkgs.callPackage ./package.nix {};
   in {
     packages.${system} = {
