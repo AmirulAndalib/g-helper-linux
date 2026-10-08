@@ -8,6 +8,26 @@
 
 ### Changed
 
+## v1.0.94 (2026-10-08)
+
+### Added
+
+- ProArt key (WMI 0x8B) runs the ROG key action (#202).
+- Lenovo: CPU Temp slider for the `cpu_temp` firmware attribute (lenovo-wmi-other, kernel 7.2+) (#202).
+
+### Fixed
+
+- Saved Auto refresh rate is applied at startup, not only after the next AC/battery change (#187, #190).
+- X11 with NVIDIA dGPU: refresh rate and gamma target the built-in panel instead of an external monitor (#201, #204, thanks @dljr-github).
+- Lenovo: Long_Life conservation cap is 80% on lenovo-wmi-other (kernel 7.2+), 60% on ideapad. Battery slider and Extra window follow it (#202).
+- NixOS: package builds again with current nixpkgs (#206, thanks @localcc).
+
+### Changed
+
+- Performance mode is re-applied after an Eco -> Standard GPU toggle on all models, not only the GPU tuning. `mode_reapply` = 0 keeps the old behaviour (#196).
+- Model list sync with upstream (#196).
+- CI builds the NixOS package on every PR. `scripts/update-nix-deps.py` regenerates `nixos/deps.json` (#206).
+
 ## v1.0.93 (2026-09-18)
 
 ### Added
