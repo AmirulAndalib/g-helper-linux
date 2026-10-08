@@ -12,7 +12,9 @@
 
 let
   cfg = config.services.ghelper;
-  packages = pkgs.callPackage ./package.nix {};
+  # Same overlay as flake.nix: needed for the SkiaSharp fetch fix.
+  pkgs' = pkgs.extend (import ./overlay.nix);
+  packages = pkgs'.callPackage ./package.nix {};
 
   # Udev rules from install/90-ghelper.rules with /bin/chmod
   # replaced by the Nix store coreutils path (NixOS has no /bin/chmod).

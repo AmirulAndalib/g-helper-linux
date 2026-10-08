@@ -34,6 +34,24 @@ jobs:
       - name: Run GpuModeController scenarios
         run: dotnet run -c Debug --project tests/GHelper.Linux.Tests
 
+  nix-build:
+    name: NixOS package build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v21
+
+      - name: Nix store cache
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      # Full build: catches stale deps.json, SDK fallback-package collisions
+      # and fetchNupkg patchelf breakage that a plain dotnet restore misses.
+      - name: Build ghelper flake package
+        run: nix build ./nixos#ghelper
+
   bash-tests:
     name: Boot script scenario tests
     runs-on: ubuntu-latest
