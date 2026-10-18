@@ -325,6 +325,15 @@ public static class Lithuanian
         ["audio_vocoder_detune"] = "Išderinimas",
         ["audio_vocoder_attack"] = "Gaubtinės ataka",
         ["audio_vocoder_release"] = "Atleidimas",
+        ["audio_vocoder_matrix"] = "Metalinis",
+        ["audio_vocoder_voice"] = "Balso efektai",
+        ["audio_vocoder_pitch"] = "Tono poslinkis",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Žemų pjovimas",
+        ["audio_vocoder_highcut"] = "Aukštų pjovimas",
+        ["audio_vocoder_crush"] = "Bitų mažinimas",
+        ["audio_vocoder_downsample"] = "Diskretizacijos mažinimas",
+        ["audio_vocoder_stutter"] = "Trūkčiojimas",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 klavišas",

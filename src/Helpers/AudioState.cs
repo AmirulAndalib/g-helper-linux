@@ -111,6 +111,9 @@ public sealed class AudioState
         // pitch (Hawking monotone).
         _voiceAutotuneTargetHz = AppConfig.Get("audio_voice_autotune_target", 0);
 
+        // Name of the last applied vocoder preset, "" once any knob moves.
+        _vocoderPreset = AppConfig.GetString("audio_vocoder_preset") ?? "";
+
         EqBands = new EqBand[NumEqBands];
         for (int i = 0; i < NumEqBands; i++)
         {
@@ -391,6 +394,14 @@ public sealed class AudioState
         set { _voiceAutotuneTargetHz = value; AppConfig.Set("audio_voice_autotune_target", value); }
     }
 
+    private string _vocoderPreset;
+    /// <summary>Last applied vocoder preset name; "" when knobs were changed after it.</summary>
+    public string VocoderPreset
+    {
+        get => _vocoderPreset;
+        set { _vocoderPreset = value ?? ""; AppConfig.Set("audio_vocoder_preset", _vocoderPreset); }
+    }
+
     // --- Selected capture source (PipeWire node name, "" = system default) -
 
     private string _selectedSource;
@@ -506,6 +517,7 @@ public sealed class AudioState
         VoiceStutterHz = 0;
         VoiceStutterDutyMille = 500;
         VoiceAutotuneTargetHz = 0;
+        VocoderPreset = "";
     }
     public void ResetEqBand(int i)
     {

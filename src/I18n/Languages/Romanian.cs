@@ -844,6 +844,15 @@ public static class Romanian
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Atac anvelopă",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metalic",
+        ["audio_vocoder_voice"] = "Efecte vocale",
+        ["audio_vocoder_pitch"] = "Transpunere",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Tăiere joase",
+        ["audio_vocoder_highcut"] = "Tăiere înalte",
+        ["audio_vocoder_crush"] = "Reducere biți",
+        ["audio_vocoder_downsample"] = "Subeșantionare",
+        ["audio_vocoder_stutter"] = "Sacadat",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

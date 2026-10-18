@@ -847,6 +847,15 @@ public static class Arabic
         ["audio_vocoder_detune"] = "تعطيل النغمة",
         ["audio_vocoder_attack"] = "بداية المغلف",
         ["audio_vocoder_release"] = "إصدار",
+        ["audio_vocoder_matrix"] = "معدني",
+        ["audio_vocoder_voice"] = "مؤثرات الصوت",
+        ["audio_vocoder_pitch"] = "إزاحة طبقة الصوت",
+        ["audio_vocoder_autotune"] = "ضبط تلقائي للنغمة",
+        ["audio_vocoder_lowcut"] = "قطع المنخفضات",
+        ["audio_vocoder_highcut"] = "قطع المرتفعات",
+        ["audio_vocoder_crush"] = "تقليل البت",
+        ["audio_vocoder_downsample"] = "خفض معدل العينات",
+        ["audio_vocoder_stutter"] = "تقطيع",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

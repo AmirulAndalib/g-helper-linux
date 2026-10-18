@@ -325,6 +325,15 @@ public static class Nepali
         ["audio_vocoder_detune"] = "डिट्युन",
         ["audio_vocoder_attack"] = "एनभलप अट्याक",
         ["audio_vocoder_release"] = "रिलिज",
+        ["audio_vocoder_matrix"] = "धातु जस्तो",
+        ["audio_vocoder_voice"] = "आवाज इफेक्ट",
+        ["audio_vocoder_pitch"] = "पिच सिफ्ट",
+        ["audio_vocoder_autotune"] = "अटोट्युन",
+        ["audio_vocoder_lowcut"] = "लो कट",
+        ["audio_vocoder_highcut"] = "हाई कट",
+        ["audio_vocoder_crush"] = "बिट क्रस",
+        ["audio_vocoder_downsample"] = "डाउनस्याम्पल",
+        ["audio_vocoder_stutter"] = "स्टटर",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 कुञ्जी",

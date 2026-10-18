@@ -847,6 +847,15 @@ public static class Danish
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Envelopeattack",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metallisk",
+        ["audio_vocoder_voice"] = "Stemmeeffekter",
+        ["audio_vocoder_pitch"] = "Toneforskydning",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Lav afskæring",
+        ["audio_vocoder_highcut"] = "Høj afskæring",
+        ["audio_vocoder_crush"] = "Bitknusning",
+        ["audio_vocoder_downsample"] = "Nedsampling",
+        ["audio_vocoder_stutter"] = "Hakken",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

@@ -325,6 +325,15 @@ public static class Filipino
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Envelope attack",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metaliko",
+        ["audio_vocoder_voice"] = "Mga epekto ng boses",
+        ["audio_vocoder_pitch"] = "Paglipat ng tono",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Low cut",
+        ["audio_vocoder_highcut"] = "High cut",
+        ["audio_vocoder_crush"] = "Bit crush",
+        ["audio_vocoder_downsample"] = "Downsample",
+        ["audio_vocoder_stutter"] = "Putol-putol",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 Key",

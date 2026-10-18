@@ -847,6 +847,15 @@ public static class Indonesian
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Serangan envelope",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metalik",
+        ["audio_vocoder_voice"] = "Efek suara",
+        ["audio_vocoder_pitch"] = "Geser nada",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Potong rendah",
+        ["audio_vocoder_highcut"] = "Potong tinggi",
+        ["audio_vocoder_crush"] = "Bit crush",
+        ["audio_vocoder_downsample"] = "Downsample",
+        ["audio_vocoder_stutter"] = "Patah-patah",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

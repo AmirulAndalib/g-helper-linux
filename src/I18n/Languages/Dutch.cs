@@ -844,6 +844,15 @@ public static class Dutch
         ["audio_vocoder_detune"] = "Ontstemming",
         ["audio_vocoder_attack"] = "Envelope-attack",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metaalachtig",
+        ["audio_vocoder_voice"] = "Stemeffecten",
+        ["audio_vocoder_pitch"] = "Toonhoogteverschuiving",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Lage afsnijding",
+        ["audio_vocoder_highcut"] = "Hoge afsnijding",
+        ["audio_vocoder_crush"] = "Bitcrusher",
+        ["audio_vocoder_downsample"] = "Downsampling",
+        ["audio_vocoder_stutter"] = "Hakkelen",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

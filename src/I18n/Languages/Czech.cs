@@ -844,6 +844,15 @@ public static class Czech
         ["audio_vocoder_detune"] = "Rozladění",
         ["audio_vocoder_attack"] = "Atak obálky",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Kovový zvuk",
+        ["audio_vocoder_voice"] = "Hlasové efekty",
+        ["audio_vocoder_pitch"] = "Posun výšky",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Ořez basů",
+        ["audio_vocoder_highcut"] = "Ořez výšek",
+        ["audio_vocoder_crush"] = "Bitová redukce",
+        ["audio_vocoder_downsample"] = "Podvzorkování",
+        ["audio_vocoder_stutter"] = "Sekání",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

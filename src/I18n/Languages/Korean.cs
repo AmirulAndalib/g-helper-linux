@@ -847,6 +847,15 @@ public static class Korean
         ["audio_vocoder_detune"] = "디튠",
         ["audio_vocoder_attack"] = "엔벨로프 어택",
         ["audio_vocoder_release"] = "릴리스",
+        ["audio_vocoder_matrix"] = "금속성",
+        ["audio_vocoder_voice"] = "음성 효과",
+        ["audio_vocoder_pitch"] = "피치 시프트",
+        ["audio_vocoder_autotune"] = "오토튠",
+        ["audio_vocoder_lowcut"] = "로우 컷",
+        ["audio_vocoder_highcut"] = "하이 컷",
+        ["audio_vocoder_crush"] = "비트 크러시",
+        ["audio_vocoder_downsample"] = "다운샘플",
+        ["audio_vocoder_stutter"] = "스터터",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

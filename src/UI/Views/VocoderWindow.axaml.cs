@@ -7,11 +7,14 @@ using GHelper.Linux.I18n;
 namespace GHelper.Linux.UI.Views;
 
 /// <summary>
-/// Per-effect mini-window for the vocoder. Sliders cover carrier pitch,
-/// detune, envelope attack/release and wet/dry mix. Pattern matches the
-/// delay/reverb mini-windows: hydrate from <see cref="AudioState"/>,
-/// push every change through <see cref="AudioHelper"/> (which also
-/// writes through to AudioState + AppConfig).
+/// Per-effect window for the vocoder and the voice effects that ride on it
+/// (pitch shift, autotune, band-pass, bit crush, stutter). Every control
+/// pushes through <see cref="AudioHelper"/>, which also writes through to
+/// <see cref="AudioState"/> + AppConfig.
+///
+/// The helper bypasses all of it while the vocoder is off, so the header
+/// checkbox mirrors that switch, and picking a preset or moving any control
+/// turns it on: otherwise the window looks alive and nothing is heard.
 ///
 /// The "Follow voice pitch" toggle reshapes the carrier slider in place:
 /// when off it's the fixed carrier frequency 50..440 Hz, when on it
@@ -22,21 +25,22 @@ public partial class VocoderWindow : Window
 {
     private bool _loading = true;
 
+    // Frames can still carry the old on/off flag for a moment after a local
+    // toggle; ignore them briefly so the header checkbox does not bounce.
+    private DateTime _ignoreFlagsUntil = DateTime.MinValue;
+
+    // High cut slider: the right end means "off" (helper value 0).
+    private const int HighCutOff = 12000;
+
     /// <summary>
-    /// One canned voice. A preset stamps the entire voice pipeline -
-    /// vocoder bands, pitch shifter, autotune snap, bit-crusher - so the
-    /// listener actually hears the named character instead of just the
-    /// raw vocoder timbre. Three DSP layers cooperate:
+    /// One canned voice. A preset stamps every control in the window:
     ///
     ///   - vocoder (Mix &gt; 0): formant carrier voices (Daft Punk,
-    ///     Kraftwerk, Matrix, Cylon, Hawking)
-    ///   - pitch shifter / autotune: time-domain re-pitching of the dry
-    ///     voice (Vader = -5 st, Chipmunk = +12 st, Cher = chromatic snap)
-    ///   - bit-crusher: low-rate ADC and amplitude quantise for lo-fi
-    ///     radio characters (Robot Phone)
-    ///
-    /// Each preset turns the layers it needs on and leaves the rest in
-    /// bypass, so the output is the character the name promises.
+    ///     Kraftwerk, Matrix, Cylon)
+    ///   - pitch shifter / autotune: time-domain re-pitching of the voice
+    ///     (Vader = -5 st, Chipmunk = +12 st)
+    ///   - band-pass, bit crush, stutter: telephone band, lo-fi and the
+    ///     Cylon chop
     /// </summary>
     private readonly record struct VocoderPreset(
         string Name,
@@ -47,7 +51,7 @@ public partial class VocoderWindow : Window
         int ReleaseMs,                 // 5..500
         bool Follow,
         int VocoderPitchShift,         // -24..+24 (only used when Follow=true)
-        int PitchShiftCentisemis,      // -2400..+2400 dry-voice pitch shift
+        int PitchShiftCentisemis,      // -2400..+2400 voice pitch shift
         bool Autotune,                 // pitch-shifter driven by autotune
         int AutotuneTargetHz,          // 0 = chromatic snap, >0 = monotone
         int BitcrushBits,              // 0 = bypass, 1..15 levels
@@ -62,65 +66,50 @@ public partial class VocoderWindow : Window
     [
         // Daft Punk - "Around the World" / "Get Lucky": carrier vocoder
         // following the singer's melody. Clean two-osc carrier (no ring
-        // mod), tight detune, fast envelopes - the EMS-Vocoder-tracking-
-        // a-melodic-line sound. No band-pass; the vocoder bands themselves
-        // shape the spectrum.
+        // mod), tight detune, fast envelopes. No band-pass; the vocoder
+        // bands themselves shape the spectrum.
         //                     mix car  det atk rel  follow vshift psh   AT  ATtgt bcb bcds  matrix  hpf  lpf  stut
         new("Daft Punk",       900, 110,  50,  2,  12, true,    0,     0, false,    0,  0,    1,    150,    0,    0,   0),
 
         // Chipmunk - tape sped up 2x = +12 st pitch with formants riding
-        // along. Pure granular shifter (no formant preservation), no
-        // vocoder. Light HPF trims the chest rumble that doesn't survive
-        // an octave-up shift sensibly.
+        // along. Pure granular shifter, no vocoder. Light HPF trims the
+        // chest rumble that doesn't survive an octave-up shift sensibly.
         new("Chipmunk",          0, 110,   0,  2,  15, false,   0,  1200, false,    0,  0,    1,      0,  150,    0,   0),
 
-        // Cylon - Battlestar Galactica machine voice. The signature isn't
-        // just the vocoder; it's the staccato "By Your Command" chopping.
-        // Stutter gate at 6 Hz (slightly fast for menace) plus medium
-        // Matrix intensity gives the rhythmic robot speech the name
-        // promises. Fixed deep carrier, slow envelope so each chop sustains.
+        // Cylon - Battlestar Galactica machine voice. Stutter gate at 6 Hz
+        // plus medium Matrix intensity gives the rhythmic robot speech.
+        // Fixed deep carrier, slow envelope so each chop sustains.
         new("Cylon",           900,  90, 160, 10,  70, false,   0,     0, false,    0,  0,    1,    450,    0,    0,   6),
 
-        // Darth Vader - James Earl Jones pitched down + telephone helmet
-        // muffle + breathing track. We can't add breathing in real-time,
-        // but pitch shift -5 st combined with a 2500 Hz LPF reproduces
-        // the "speaking through a helmet" character. Vocoder OFF - Vader
-        // is the speaker, not a robot. Slight HPF (80 Hz) trims the
-        // overshift rumble.
+        // Darth Vader - pitched down 5 st with a 2500 Hz LPF for the
+        // "speaking through a helmet" character. Vocoder OFF - Vader is the
+        // speaker, not a robot. Slight HPF (80 Hz) trims the rumble.
         new("Darth Vader",       0, 110,   0,  5,  30, false,   0,  -500, false,    0,  0,    1,      0,   80, 2500,   0),
 
-        // Kraftwerk - "Trans-Europe Express" pure-analog EMS Vocoder. Clean
-        // saw+square carrier (Matrix = 0 - no ring mod, no tanh drive),
-        // fixed mid carrier at 140 Hz, very tight detune, snappy envelope.
-        // Mostly wet so the formants dominate.
+        // Kraftwerk - "Trans-Europe Express" analog EMS Vocoder. Clean
+        // saw+square carrier (Matrix = 0), fixed 140 Hz, tight detune,
+        // snappy envelope. Mostly wet so the formants dominate.
         new("Kraftwerk",       950, 140,  10,  3,  15, false,   0,     0, false,    0,  0,    1,      0,    0,    0,   0),
 
-        // Matrix Agent - Sentinel comm-rig. Full Matrix-intensity stack
-        // (ring mod + sub-octave + tanh drive + tremolo) on a deep 70 Hz
-        // carrier with dry-voice pitched down -2 st for menace. Telephony
-        // band-pass (300-3400 Hz) makes it sound like it is coming over
-        // a comm channel.
+        // Matrix Agent - Sentinel comm-rig. Full Matrix intensity (ring mod
+        // + sub-octave + tanh drive + tremolo) on a deep 70 Hz carrier with
+        // the voice pitched down 2 st, over a 300-3400 Hz comm channel.
         new("Matrix Agent",    900,  70,  90, 10,  55, false,   0,  -200, false,    0,  0,    1,   1000,  300, 3400,   0),
 
-        // Robot Phone - the canonical "speaking through a real telephone":
-        // 300-3400 Hz telephone band + 8-bit / 2x downsample crush for the
-        // µ-law-ish quantisation noise. No vocoder, no shift - this is a
-        // signal-chain effect, not a synthesised voice.
+        // Robot Phone - 300-3400 Hz telephone band + 8-bit / 2x downsample
+        // crush for the quantisation noise. No vocoder, no shift.
         new("Robot Phone",       0, 110,   0,  5,  25, false,   0,     0, false,    0,  8,    2,      0,  300, 3400,   0),
 
-        // Sci-Fi Alien - "almost forming words". Pitch shift +7 st (perfect
-        // fifth up) + heavy Matrix vocoder + tinny-radio band-pass
-        // (700-3200 Hz) so vowels resemble articulated buzz rather than
-        // human speech.
+        // Sci-Fi Alien - "almost forming words". Pitch shift +7 st + heavy
+        // Matrix vocoder + tinny-radio band-pass (700-3200 Hz).
         new("Sci-Fi Alien",    500, 110, 130,  2,  10, false,   0,   700, false,    0,  0,    1,    700,  700, 3200,   0),
     ];
 
     public VocoderWindow()
     {
         InitializeComponent();
-        ApplyLabels();
         comboPreset.ItemsSource = Presets.Select(p => p.Name).ToList();
-        comboPreset.SelectedIndex = -1;
+        ApplyLabels();
         HydrateFromState();
         Labels.LanguageChanged += OnLanguageChanged;
         AudioHelper.Instance.FrameReceived += OnFrame;
@@ -132,48 +121,74 @@ public partial class VocoderWindow : Window
         _loading = false;
     }
 
-    private void OnLanguageChanged() => Dispatcher.UIThread.Post(ApplyLabels);
+    private void OnLanguageChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        ApplyLabels();
+        UpdateLabels();
+    });
 
     private void ApplyLabels()
     {
         Title = Labels.Get("audio_vocoder_title");
-        labelHeader.Text = Labels.Get("audio_vocoder_title");
+        checkEnabled.Content = Labels.Get("audio_vocoder_title");
         labelDescription.Text = Labels.Get("audio_vocoder_description");
         labelPresetHeader.Text = Labels.Get("audio_vocoder_preset");
         labelDryWet.Text = Labels.Get("audio_vocoder_drywet");
         labelDetuneHeader.Text = Labels.Get("audio_vocoder_detune");
+        labelMatrixHeader.Text = Labels.Get("audio_vocoder_matrix");
         labelAttackHeader.Text = Labels.Get("audio_vocoder_attack");
         labelReleaseHeader.Text = Labels.Get("audio_vocoder_release");
+        labelVoiceHeader.Text = Labels.Get("audio_vocoder_voice");
+        labelPitchHeader.Text = Labels.Get("audio_vocoder_pitch");
+        checkAutotune.Content = Labels.Get("audio_vocoder_autotune");
+        labelLowCutHeader.Text = Labels.Get("audio_vocoder_lowcut");
+        labelHighCutHeader.Text = Labels.Get("audio_vocoder_highcut");
+        labelCrushHeader.Text = Labels.Get("audio_vocoder_crush");
+        labelDownsampleHeader.Text = Labels.Get("audio_vocoder_downsample");
+        labelStutterHeader.Text = Labels.Get("audio_vocoder_stutter");
         buttonReset.Content = Labels.Get("audio_reset");
         checkFollow.Content = Labels.Get("audio_vocoder_follow");
         ToolTip.SetTip(checkFollow, Labels.Get("audio_vocoder_follow_tooltip"));
-        // Carrier-slider header depends on whether follow is on. Defer
-        // to ConfigureCarrierSlider which is also called when the toggle
-        // flips, so the label tracks the slider mode.
-        ConfigureCarrierSlider(AudioState.Instance.VocoderFollow);
+        labelCarrierHeader.Text = Labels.Get(checkFollow.IsChecked == true
+            ? "audio_vocoder_transpose"
+            : "audio_vocoder_carrier");
     }
+
+    // --- state <-> controls -------------------------------------------------
+
+    private static int CrushToSlider(int bits) => bits <= 0 ? 0 : 16 - Math.Clamp(bits, 1, 15);
+    private static int SliderToCrush(int v) => v <= 0 ? 0 : 16 - v;
+    private static int HighCutToSlider(int lpf) => lpf <= 0 || lpf >= HighCutOff ? HighCutOff : Math.Clamp(lpf, 1000, HighCutOff - 100);
+    private static int SliderToHighCut(int v) => v >= HighCutOff ? 0 : v;
 
     private void HydrateFromState()
     {
+        bool wasLoading = _loading;
         _loading = true;
         var s = AudioState.Instance;
+        checkEnabled.IsChecked = s.VocoderOn;
+        comboPreset.SelectedIndex = Array.FindIndex(Presets, p => p.Name == s.VocoderPreset);
+        sliderMix.Value = s.VocoderMix;
         sliderDetune.Value = s.VocoderDetune;
         sliderAttack.Value = s.VocoderAttackMs;
         sliderRelease.Value = s.VocoderReleaseMs;
-        sliderMix.Value = s.VocoderMix;
+        sliderMatrix.Value = s.VocoderMatrixIntensity;
         checkFollow.IsChecked = s.VocoderFollow;
-        // ConfigureCarrierSlider sets Min/Max + initial slider value to
-        // either VocoderCarrierHz or VocoderPitchShift depending on mode.
         ConfigureCarrierSlider(s.VocoderFollow);
-        UpdateLabels(s.VocoderDetune, s.VocoderAttackMs, s.VocoderReleaseMs, s.VocoderMix);
-        _loading = false;
+        sliderPitch.Value = Math.Round(s.VoicePitchShiftCentisemis / 100.0);
+        checkAutotune.IsChecked = s.VoiceAutotuneOn;
+        sliderLowCut.Value = s.VoiceBandpassHpfHz;
+        sliderHighCut.Value = HighCutToSlider(s.VoiceBandpassLpfHz);
+        sliderCrush.Value = CrushToSlider(s.VoiceBitcrushBits);
+        sliderDownsample.Value = Math.Max(1, s.VoiceBitcrushDownsample);
+        sliderStutter.Value = s.VoiceStutterHz;
+        UpdateLabels();
+        _loading = wasLoading;
     }
 
     /// <summary>
     /// Reconfigure the carrier slider in place to either Hz mode (50..440)
-    /// or semitone mode (-24..+24). Suppresses ValueChanged callbacks
-    /// during the swap so we don't accidentally push a wrong value to the
-    /// helper.
+    /// or semitone mode (-24..+24), reading the matching value from state.
     /// </summary>
     private void ConfigureCarrierSlider(bool follow)
     {
@@ -187,7 +202,6 @@ public partial class VocoderWindow : Window
             sliderCarrier.TickFrequency = 1;
             sliderCarrier.Value = s.VocoderPitchShift;
             labelCarrierHeader.Text = Labels.Get("audio_vocoder_transpose");
-            labelCarrier.Text = FormatSemitones(s.VocoderPitchShift);
         }
         else
         {
@@ -196,85 +210,155 @@ public partial class VocoderWindow : Window
             sliderCarrier.TickFrequency = 10;
             sliderCarrier.Value = s.VocoderCarrierHz;
             labelCarrierHeader.Text = Labels.Get("audio_vocoder_carrier");
-            labelCarrier.Text = $"{s.VocoderCarrierHz} Hz";
         }
         _loading = wasLoading;
     }
 
-    private static string FormatSemitones(int s)
+    private static string FormatSemitones(int s) => s == 0 ? "0 st" : (s > 0 ? "+" : "") + s + " st";
+
+    private void UpdateLabels()
     {
-        if (s == 0)
-            return "0 st";
-        return (s > 0 ? "+" : "") + s + " st";
+        var s = AudioState.Instance;
+        string off = Labels.Get("off");
+        labelMix.Text = $"{(int)sliderMix.Value / 10}%";
+        labelCarrier.Text = s.VocoderFollow ? FormatSemitones(s.VocoderPitchShift) : $"{s.VocoderCarrierHz} Hz";
+        labelDetune.Text = $"{(int)sliderDetune.Value / 10}%";
+        labelMatrix.Text = $"{(int)sliderMatrix.Value / 10}%";
+        labelAttack.Text = $"{(int)sliderAttack.Value} ms";
+        labelRelease.Text = $"{(int)sliderRelease.Value} ms";
+        labelPitch.Text = FormatSemitones((int)sliderPitch.Value);
+        int low = (int)sliderLowCut.Value;
+        labelLowCut.Text = low == 0 ? off : $"{low} Hz";
+        int high = SliderToHighCut((int)sliderHighCut.Value);
+        labelHighCut.Text = high == 0 ? off : $"{high} Hz";
+        int bits = SliderToCrush((int)sliderCrush.Value);
+        labelCrush.Text = bits == 0 ? off : $"{bits} bit";
+        int ds = (int)sliderDownsample.Value;
+        labelDownsample.Text = ds <= 1 ? off : $"{ds}x";
+        int stut = (int)sliderStutter.Value;
+        labelStutter.Text = stut == 0 ? off : $"{stut} Hz";
+
+        // Controls that cannot be heard right now are greyed out: the robot
+        // section does nothing at 0% wet, and autotune drives the shifter
+        // instead of the pitch slider.
+        panelRobot.IsEnabled = sliderMix.Value > 0;
+        panelPitch.IsEnabled = checkAutotune.IsChecked != true;
     }
 
-    private void UpdateLabels(int det, int atk, int rel, int mix)
-    {
-        labelDetune.Text = $"{det / 10}%";
-        labelAttack.Text = $"{atk} ms";
-        labelRelease.Text = $"{rel} ms";
-        labelMix.Text = $"{mix / 10}%";
-    }
+    // --- user edits ---------------------------------------------------------
 
-    /// <summary>
-    /// Handler for every slider except the carrier slider (which has its
-    /// own handler because it changes semantic with follow mode). Also
-    /// clears any active preset selection so the dropdown does not lie
-    /// about the user's tweaked state.
-    /// </summary>
-    private void OnChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    /// <summary>Turn the vocoder on if a change was made while it was off.</summary>
+    private void EnsureEnabled()
     {
-        if (_loading || labelCarrier == null)
+        if (AudioState.Instance.VocoderOn)
             return;
-        ClearPresetSelection();
-        PushFullVocoderState();
+        AudioHelper.Instance.SetVocoder(true);
+        _ignoreFlagsUntil = DateTime.UtcNow.AddMilliseconds(500);
+        bool wasLoading = _loading;
+        _loading = true;
+        checkEnabled.IsChecked = true;
+        _loading = wasLoading;
+    }
+
+    /// <summary>A control moved away from the preset: drop the selection.</summary>
+    private void UserEdited()
+    {
+        if (comboPreset.SelectedIndex >= 0)
+        {
+            bool wasLoading = _loading;
+            _loading = true;
+            comboPreset.SelectedIndex = -1;
+            _loading = wasLoading;
+        }
+        AudioState.Instance.VocoderPreset = "";
+        EnsureEnabled();
+        UpdateLabels();
+    }
+
+    private void CheckEnabled_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        _ignoreFlagsUntil = DateTime.UtcNow.AddMilliseconds(500);
+        AudioHelper.Instance.SetVocoder(checkEnabled.IsChecked == true);
+    }
+
+    /// <summary>Mix, detune, attack, release: the VOP parameter set.</summary>
+    private void OnVocoderChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading)
+            return;
+        PushVocoder();
+        UserEdited();
     }
 
     /// <summary>
-    /// Carrier slider: interpret the current value either as Hz (when
-    /// follow is off) or as a semitone shift (when follow is on), then
-    /// push the full param set.
+    /// Carrier slider: Hz when follow is off, semitones when it is on.
     /// </summary>
     private void SliderCarrier_Changed(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
-        if (_loading || labelCarrier == null)
+        if (_loading)
             return;
         var s = AudioState.Instance;
         if (s.VocoderFollow)
-        {
-            int shift = (int)sliderCarrier.Value;
-            s.VocoderPitchShift = shift;
-            labelCarrier.Text = FormatSemitones(shift);
-        }
+            s.VocoderPitchShift = (int)sliderCarrier.Value;
         else
-        {
-            int hz = (int)sliderCarrier.Value;
-            s.VocoderCarrierHz = hz;
-            labelCarrier.Text = $"{hz} Hz";
-        }
-        ClearPresetSelection();
-        PushFullVocoderState();
+            s.VocoderCarrierHz = (int)sliderCarrier.Value;
+        PushVocoder();
+        UserEdited();
     }
 
     private void CheckFollow_Changed(object? sender, RoutedEventArgs e)
     {
         if (_loading)
             return;
-        bool follow = checkFollow.IsChecked == true;
-        AudioState.Instance.VocoderFollow = follow;
-        // Reconfigure the slider so the user sees Hz <-> semitones swap.
-        ConfigureCarrierSlider(follow);
-        ClearPresetSelection();
-        PushFullVocoderState();
+        AudioState.Instance.VocoderFollow = checkFollow.IsChecked == true;
+        ConfigureCarrierSlider(AudioState.Instance.VocoderFollow);
+        PushVocoder();
+        UserEdited();
     }
 
-    /// <summary>
-    /// Preset combo selection. Pulls the canned values into AudioState,
-    /// reflects them in the sliders, and pushes the full parameter set
-    /// to the helper in one go. Suppresses the slider ValueChanged
-    /// callbacks via <see cref="_loading"/> so they do not clobber the
-    /// selection mid-apply.
-    /// </summary>
+    /// <summary>Metallic, pitch, cuts, crush, stutter.</summary>
+    private void OnVoiceChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_loading)
+            return;
+        PushVoice();
+        UserEdited();
+    }
+
+    private void CheckAutotune_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var helper = AudioHelper.Instance;
+        // The UI offers chromatic snap only; clear any monotone target.
+        helper.SetVoiceAutotuneTarget(0);
+        helper.SetAutotune(checkAutotune.IsChecked == true);
+        UserEdited();
+    }
+
+    private void PushVocoder()
+    {
+        var s = AudioState.Instance;
+        AudioHelper.Instance.SetVocoder((int)sliderMix.Value, s.VocoderCarrierHz,
+                                        (int)sliderAttack.Value, (int)sliderRelease.Value,
+                                        (int)sliderDetune.Value,
+                                        s.VocoderFollow, s.VocoderPitchShift);
+    }
+
+    private void PushVoice()
+    {
+        var helper = AudioHelper.Instance;
+        helper.SetVocoderMatrix((int)sliderMatrix.Value);
+        helper.SetPitchShift((int)sliderPitch.Value * 100);
+        helper.SetVoiceBandpass((int)sliderLowCut.Value, SliderToHighCut((int)sliderHighCut.Value));
+        helper.SetBitcrush(SliderToCrush((int)sliderCrush.Value), (int)sliderDownsample.Value);
+        helper.SetVoiceStutter((int)sliderStutter.Value, AudioState.Instance.VoiceStutterDutyMille);
+    }
+
+    // --- presets / reset ----------------------------------------------------
+
     private void ComboPreset_Changed(object? sender, SelectionChangedEventArgs e)
     {
         if (_loading)
@@ -287,120 +371,62 @@ public partial class VocoderWindow : Window
 
     private void ApplyPreset(VocoderPreset p)
     {
-        _loading = true;
-        var s = AudioState.Instance;
-        s.VocoderMix = p.Mix;
-        s.VocoderCarrierHz = p.CarrierHz;
-        s.VocoderDetune = p.Detune;
-        s.VocoderAttackMs = p.AttackMs;
-        s.VocoderReleaseMs = p.ReleaseMs;
-        s.VocoderFollow = p.Follow;
-        s.VocoderPitchShift = p.VocoderPitchShift;
-        // Voice-effects layer (pitch shifter / autotune / bitcrush /
-        // band-pass / stutter) - each preset turns on only the layers it
-        // actually needs. The defaults (0 / false) bypass each layer.
-        s.VoicePitchShiftCentisemis = p.PitchShiftCentisemis;
-        s.VoiceAutotuneOn = p.Autotune;
-        s.VoiceAutotuneTargetHz = p.AutotuneTargetHz;
-        s.VoiceBitcrushBits = p.BitcrushBits;
-        s.VoiceBitcrushDownsample = p.BitcrushDownsample;
-        s.VocoderMatrixIntensity = p.MatrixIntensity;
-        s.VoiceBandpassHpfHz = p.BandpassHpfHz;
-        s.VoiceBandpassLpfHz = p.BandpassLpfHz;
-        s.VoiceStutterHz = p.StutterHz;
-        s.VoiceStutterDutyMille = 500; // default duty; presets are square
-
-        sliderMix.Value = p.Mix;
-        sliderDetune.Value = p.Detune;
-        sliderAttack.Value = p.AttackMs;
-        sliderRelease.Value = p.ReleaseMs;
-        checkFollow.IsChecked = p.Follow;
-        // ConfigureCarrierSlider rebinds the carrier slider's min/max
-        // and reads the right field (Hz vs semitones) from AudioState.
-        ConfigureCarrierSlider(p.Follow);
-        UpdateLabels(p.Detune, p.AttackMs, p.ReleaseMs, p.Mix);
-        _loading = false;
-
-        // Push the full state in one batch. Vocoder + voice-effects layers
-        // are independent on the wire (different helper commands), so the
-        // order does not matter; the helper applies them atomically per
-        // sample on the next callback.
+        // The helper setters persist into AudioState; the controls are then
+        // re-read from it so window and sound cannot disagree.
         var helper = AudioHelper.Instance;
         helper.SetVocoder(p.Mix, p.CarrierHz, p.AttackMs, p.ReleaseMs,
                           p.Detune, p.Follow, p.VocoderPitchShift);
         helper.SetPitchShift(p.PitchShiftCentisemis);
-        helper.SetAutotune(p.Autotune);
         helper.SetVoiceAutotuneTarget(p.AutotuneTargetHz);
+        helper.SetAutotune(p.Autotune);
         helper.SetBitcrush(p.BitcrushBits, p.BitcrushDownsample);
         helper.SetVocoderMatrix(p.MatrixIntensity);
         helper.SetVoiceBandpass(p.BandpassHpfHz, p.BandpassLpfHz);
         helper.SetVoiceStutter(p.StutterHz, 500);
-    }
-
-    /// <summary>
-    /// Drop the selected preset back to "no selection" without re-firing
-    /// the SelectionChanged handler. Called whenever the user adjusts
-    /// a slider or toggles follow so the dropdown does not claim a
-    /// preset that no longer matches the live values.
-    /// </summary>
-    private void ClearPresetSelection()
-    {
-        if (comboPreset.SelectedIndex < 0)
-            return;
-        bool wasLoading = _loading;
-        _loading = true;
-        comboPreset.SelectedIndex = -1;
-        _loading = wasLoading;
-    }
-
-    private void PushFullVocoderState()
-    {
-        var s = AudioState.Instance;
-        // Read the non-carrier sliders here; carrier values are already
-        // committed to AudioState by SliderCarrier_Changed / ConfigureCarrierSlider.
-        int det = (int)sliderDetune.Value;
-        int atk = (int)sliderAttack.Value;
-        int rel = (int)sliderRelease.Value;
-        int mix = (int)sliderMix.Value;
-        UpdateLabels(det, atk, rel, mix);
-        AudioHelper.Instance.SetVocoder(mix, s.VocoderCarrierHz, atk, rel, det,
-                                        s.VocoderFollow, s.VocoderPitchShift);
-    }
-
-    private void OnFrame(AudioFrame f)
-    {
-        // Show the live tracked pitch next to the follow toggle so the
-        // user can see whether the tracker has a lock. Hz only; helps
-        // diagnose "robot sings wrong note" issues.
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (f.TrackedPitchHz > 1.0f)
-                labelTrackedPitch.Text = $"~{f.TrackedPitchHz:F0} Hz";
-            else
-                labelTrackedPitch.Text = "-";
-        });
+        AudioState.Instance.VocoderPreset = p.Name;
+        HydrateFromState();
+        EnsureEnabled();
     }
 
     private void ButtonReset_Click(object? sender, RoutedEventArgs e)
     {
-        AudioState.Instance.ResetVocoder();
-        HydrateFromState();
-        ClearPresetSelection();
         var s = AudioState.Instance;
+        s.ResetVocoder();
         var helper = AudioHelper.Instance;
         helper.SetVocoder(s.VocoderMix, s.VocoderCarrierHz,
                           s.VocoderAttackMs, s.VocoderReleaseMs,
                           s.VocoderDetune,
                           s.VocoderFollow, s.VocoderPitchShift);
-        // Voice-effects layer is reset by ResetVocoder; mirror that to the
-        // helper so the user is not left in (say) Chipmunk-shifted state
-        // after pressing the big Reset button.
         helper.SetPitchShift(s.VoicePitchShiftCentisemis);
-        helper.SetAutotune(s.VoiceAutotuneOn);
         helper.SetVoiceAutotuneTarget(s.VoiceAutotuneTargetHz);
+        helper.SetAutotune(s.VoiceAutotuneOn);
         helper.SetBitcrush(s.VoiceBitcrushBits, s.VoiceBitcrushDownsample);
         helper.SetVocoderMatrix(s.VocoderMatrixIntensity);
         helper.SetVoiceBandpass(s.VoiceBandpassHpfHz, s.VoiceBandpassLpfHz);
         helper.SetVoiceStutter(s.VoiceStutterHz, s.VoiceStutterDutyMille);
+        HydrateFromState();
+    }
+
+    // --- live feedback ------------------------------------------------------
+
+    private void OnFrame(AudioFrame f)
+    {
+        float hz = f.TrackedPitchHz;
+        bool on = f.VocoderOn;
+        Dispatcher.UIThread.Post(() =>
+        {
+            // Live tracked pitch next to the follow toggle shows whether
+            // the tracker has a lock.
+            labelTrackedPitch.Text = hz > 1.0f ? $"~{hz:F0} Hz" : "-";
+
+            // Keep the header in step with the Audio window tile and hotkey.
+            if (DateTime.UtcNow >= _ignoreFlagsUntil && checkEnabled.IsChecked != on)
+            {
+                bool wasLoading = _loading;
+                _loading = true;
+                checkEnabled.IsChecked = on;
+                _loading = wasLoading;
+            }
+        });
     }
 }

@@ -847,6 +847,15 @@ public static class Japanese
         ["audio_vocoder_detune"] = "デチューン",
         ["audio_vocoder_attack"] = "エンベロープアタック",
         ["audio_vocoder_release"] = "リリース",
+        ["audio_vocoder_matrix"] = "メタリック",
+        ["audio_vocoder_voice"] = "ボイスエフェクト",
+        ["audio_vocoder_pitch"] = "ピッチシフト",
+        ["audio_vocoder_autotune"] = "オートチューン",
+        ["audio_vocoder_lowcut"] = "ローカット",
+        ["audio_vocoder_highcut"] = "ハイカット",
+        ["audio_vocoder_crush"] = "ビットクラッシュ",
+        ["audio_vocoder_downsample"] = "ダウンサンプル",
+        ["audio_vocoder_stutter"] = "スタッター",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

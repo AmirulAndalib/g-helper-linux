@@ -844,6 +844,15 @@ public static class Vietnamese
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Tấn công đường bao",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Kim loại",
+        ["audio_vocoder_voice"] = "Hiệu ứng giọng",
+        ["audio_vocoder_pitch"] = "Dịch cao độ",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Cắt trầm",
+        ["audio_vocoder_highcut"] = "Cắt cao",
+        ["audio_vocoder_crush"] = "Giảm bit",
+        ["audio_vocoder_downsample"] = "Giảm mẫu",
+        ["audio_vocoder_stutter"] = "Ngắt quãng",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

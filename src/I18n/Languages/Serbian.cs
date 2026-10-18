@@ -847,6 +847,15 @@ public static class Serbian
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Атак омотача",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Метални",
+        ["audio_vocoder_voice"] = "Гласовни ефекти",
+        ["audio_vocoder_pitch"] = "Помак висине",
+        ["audio_vocoder_autotune"] = "Аутотјун",
+        ["audio_vocoder_lowcut"] = "Сечење ниских",
+        ["audio_vocoder_highcut"] = "Сечење високих",
+        ["audio_vocoder_crush"] = "Смањење битова",
+        ["audio_vocoder_downsample"] = "Смањење узорковања",
+        ["audio_vocoder_stutter"] = "Сецкање",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

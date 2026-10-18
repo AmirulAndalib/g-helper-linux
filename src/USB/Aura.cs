@@ -849,8 +849,8 @@ public static class Aura
             var wmi = App.Wmi as GHelper.Linux.Platform.Linux.LinuxAsusWmi;
             if (wmi != null && wmi.HasKeyboardRgbMode())
             {
-                wmi.SetKeyboardRgbState(flags.BootKeyb, flags.AwakeKeyb, flags.SleepKeyb);
-                Logger.WriteLine($"TUF kbd_rgb_state: boot={flags.BootKeyb} awake={flags.AwakeKeyb} sleep={flags.SleepKeyb}");
+                wmi.SetKeyboardRgbState(flags.BootKeyb, flags.AwakeKeyb, flags.SleepKeyb, flags.ShutdownKeyb);
+                Logger.WriteLine($"TUF kbd_rgb_state: boot={flags.BootKeyb} awake={flags.AwakeKeyb} sleep={flags.SleepKeyb} shutdown={flags.ShutdownKeyb}");
                 return;
             }
         }

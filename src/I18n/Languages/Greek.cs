@@ -847,6 +847,15 @@ public static class Greek
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Επίθεση περιβλήματος",
         ["audio_vocoder_release"] = "Απελευθέρωση",
+        ["audio_vocoder_matrix"] = "Μεταλλικό",
+        ["audio_vocoder_voice"] = "Εφέ φωνής",
+        ["audio_vocoder_pitch"] = "Μετατόπιση τόνου",
+        ["audio_vocoder_autotune"] = "Αυτόματος συντονισμός",
+        ["audio_vocoder_lowcut"] = "Αποκοπή χαμηλών",
+        ["audio_vocoder_highcut"] = "Αποκοπή υψηλών",
+        ["audio_vocoder_crush"] = "Μείωση bit",
+        ["audio_vocoder_downsample"] = "Υποδειγματοληψία",
+        ["audio_vocoder_stutter"] = "Διακοπτόμενο",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

@@ -847,6 +847,15 @@ public static class ChineseSimplified
         ["audio_vocoder_detune"] = "失谐",
         ["audio_vocoder_attack"] = "包络起音",
         ["audio_vocoder_release"] = "释放",
+        ["audio_vocoder_matrix"] = "金属感",
+        ["audio_vocoder_voice"] = "人声效果",
+        ["audio_vocoder_pitch"] = "变调",
+        ["audio_vocoder_autotune"] = "自动修音",
+        ["audio_vocoder_lowcut"] = "低切",
+        ["audio_vocoder_highcut"] = "高切",
+        ["audio_vocoder_crush"] = "比特压缩",
+        ["audio_vocoder_downsample"] = "降采样",
+        ["audio_vocoder_stutter"] = "断续",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)
