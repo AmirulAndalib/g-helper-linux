@@ -325,6 +325,15 @@ public static class Hindi
         ["audio_vocoder_detune"] = "डिट्यून",
         ["audio_vocoder_attack"] = "एनवेलप अटैक",
         ["audio_vocoder_release"] = "रिलीज़",
+        ["audio_vocoder_matrix"] = "धात्विक",
+        ["audio_vocoder_voice"] = "आवाज़ इफ़ेक्ट",
+        ["audio_vocoder_pitch"] = "पिच शिफ्ट",
+        ["audio_vocoder_autotune"] = "ऑटोट्यून",
+        ["audio_vocoder_lowcut"] = "लो कट",
+        ["audio_vocoder_highcut"] = "हाई कट",
+        ["audio_vocoder_crush"] = "बिट क्रश",
+        ["audio_vocoder_downsample"] = "डाउनसैंपल",
+        ["audio_vocoder_stutter"] = "स्टटर",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 कुंजी",

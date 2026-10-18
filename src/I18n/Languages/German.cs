@@ -844,6 +844,15 @@ public static class German
         ["audio_vocoder_detune"] = "Verstimmung",
         ["audio_vocoder_attack"] = "Hüllkurven-Attack",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metallisch",
+        ["audio_vocoder_voice"] = "Stimmeffekte",
+        ["audio_vocoder_pitch"] = "Tonhöhenverschiebung",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Low-Cut",
+        ["audio_vocoder_highcut"] = "High-Cut",
+        ["audio_vocoder_crush"] = "Bitcrusher",
+        ["audio_vocoder_downsample"] = "Downsampling",
+        ["audio_vocoder_stutter"] = "Stottern",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

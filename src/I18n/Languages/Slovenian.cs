@@ -325,6 +325,15 @@ public static class Slovenian
         ["audio_vocoder_detune"] = "Razglasitev",
         ["audio_vocoder_attack"] = "Vzpon ovojnice",
         ["audio_vocoder_release"] = "Sprostitev",
+        ["audio_vocoder_matrix"] = "Kovinsko",
+        ["audio_vocoder_voice"] = "Glasovni učinki",
+        ["audio_vocoder_pitch"] = "Premik višine",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Rez nizkih",
+        ["audio_vocoder_highcut"] = "Rez visokih",
+        ["audio_vocoder_crush"] = "Bitno drobljenje",
+        ["audio_vocoder_downsample"] = "Podvzorčenje",
+        ["audio_vocoder_stutter"] = "Sekljanje",
 
         // KEY NAMES
         ["key_m4"] = "Tipka ROG / M5",

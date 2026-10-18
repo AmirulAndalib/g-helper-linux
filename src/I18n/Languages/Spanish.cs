@@ -844,6 +844,15 @@ public static class Spanish
         ["audio_vocoder_detune"] = "Desafinación",
         ["audio_vocoder_attack"] = "Ataque envolvente",
         ["audio_vocoder_release"] = "Liberación",
+        ["audio_vocoder_matrix"] = "Metálico",
+        ["audio_vocoder_voice"] = "Efectos de voz",
+        ["audio_vocoder_pitch"] = "Cambio de tono",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Corte de graves",
+        ["audio_vocoder_highcut"] = "Corte de agudos",
+        ["audio_vocoder_crush"] = "Bitcrusher",
+        ["audio_vocoder_downsample"] = "Submuestreo",
+        ["audio_vocoder_stutter"] = "Entrecortado",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

@@ -844,6 +844,15 @@ public static class Italian
         ["audio_vocoder_detune"] = "Scordatura",
         ["audio_vocoder_attack"] = "Attacco inviluppo",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metallico",
+        ["audio_vocoder_voice"] = "Effetti voce",
+        ["audio_vocoder_pitch"] = "Trasposizione",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Taglio bassi",
+        ["audio_vocoder_highcut"] = "Taglio alti",
+        ["audio_vocoder_crush"] = "Bitcrusher",
+        ["audio_vocoder_downsample"] = "Sottocampionamento",
+        ["audio_vocoder_stutter"] = "Intermittenza",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

@@ -847,6 +847,15 @@ public static class Finnish
         ["audio_vocoder_detune"] = "Vire",
         ["audio_vocoder_attack"] = "Verhokäyrän atakki",
         ["audio_vocoder_release"] = "Vapautus",
+        ["audio_vocoder_matrix"] = "Metallinen",
+        ["audio_vocoder_voice"] = "Ääniefektit",
+        ["audio_vocoder_pitch"] = "Sävelkorkeuden siirto",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Alarajaus",
+        ["audio_vocoder_highcut"] = "Ylärajaus",
+        ["audio_vocoder_crush"] = "Bittimurskaus",
+        ["audio_vocoder_downsample"] = "Alinäytteistys",
+        ["audio_vocoder_stutter"] = "Pätkintä",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

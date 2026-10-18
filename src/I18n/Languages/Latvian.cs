@@ -325,6 +325,15 @@ public static class Latvian
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Apvalka uzbrukums",
         ["audio_vocoder_release"] = "Atlaišana",
+        ["audio_vocoder_matrix"] = "Metālisks",
+        ["audio_vocoder_voice"] = "Balss efekti",
+        ["audio_vocoder_pitch"] = "Toņa nobīde",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Zemo nogriešana",
+        ["audio_vocoder_highcut"] = "Augsto nogriešana",
+        ["audio_vocoder_crush"] = "Bitu samazināšana",
+        ["audio_vocoder_downsample"] = "Nolases samazināšana",
+        ["audio_vocoder_stutter"] = "Raustīšana",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 taustiņš",

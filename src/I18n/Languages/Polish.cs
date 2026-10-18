@@ -844,6 +844,15 @@ public static class Polish
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Atak obwiedni",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metaliczny",
+        ["audio_vocoder_voice"] = "Efekty głosu",
+        ["audio_vocoder_pitch"] = "Zmiana wysokości",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Odcięcie niskich",
+        ["audio_vocoder_highcut"] = "Odcięcie wysokich",
+        ["audio_vocoder_crush"] = "Redukcja bitów",
+        ["audio_vocoder_downsample"] = "Obniżenie próbkowania",
+        ["audio_vocoder_stutter"] = "Szatkowanie",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

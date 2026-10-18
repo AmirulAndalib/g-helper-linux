@@ -325,6 +325,15 @@ public static class Malay
         ["audio_vocoder_detune"] = "Nyahtala",
         ["audio_vocoder_attack"] = "Serangan sampul",
         ["audio_vocoder_release"] = "Pelepasan",
+        ["audio_vocoder_matrix"] = "Logam",
+        ["audio_vocoder_voice"] = "Kesan suara",
+        ["audio_vocoder_pitch"] = "Anjakan nada",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Potong rendah",
+        ["audio_vocoder_highcut"] = "Potong tinggi",
+        ["audio_vocoder_crush"] = "Bit crush",
+        ["audio_vocoder_downsample"] = "Downsample",
+        ["audio_vocoder_stutter"] = "Tersekat-sekat",
 
         // KEY NAMES
         ["key_m4"] = "Kekunci ROG / M5",

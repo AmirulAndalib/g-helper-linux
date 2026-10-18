@@ -847,6 +847,15 @@ public static class Norwegian
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Envelope-attack",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metallisk",
+        ["audio_vocoder_voice"] = "Stemmeeffekter",
+        ["audio_vocoder_pitch"] = "Toneforskyvning",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Lavkutt",
+        ["audio_vocoder_highcut"] = "Høykutt",
+        ["audio_vocoder_crush"] = "Bitknusing",
+        ["audio_vocoder_downsample"] = "Nedsampling",
+        ["audio_vocoder_stutter"] = "Hakking",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

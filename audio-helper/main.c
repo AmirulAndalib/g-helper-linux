@@ -456,31 +456,50 @@ struct voc_band
 };
 
 /* ---------------------------------------------------------------------------
- *   Pitch tracker (autocorrelation, voice band 70..400 Hz)
+ *   Pitch tracker (autocorrelation, voice band 60..400 Hz)
  *
  *   Runs on the same signal the vocoder consumes (post-rnnoise-or-bypass
  *   so it benefits from denoise when active but works on raw mic when not).
- *   Refreshed every PITCH_HOP samples (~ 10 ms @ 48 kHz). A one-pole LPF on
+ *   The input is low-passed at 900 Hz and decimated 4x to 12 kHz first:
+ *   pitch needs no content above ~1 kHz, the low-pass keeps formants from
+ *   winning the correlation, and the window can then hold two periods of a
+ *   60 Hz voice for a quarter of the work. (The old 48 kHz 1024-sample
+ *   window capped the lag at 512 = 94 Hz, so most male voices never got a
+ *   lock and follow mode sat on the fixed carrier.)
+ *
+ *   Refreshed every PITCH_HOP input samples (~10 ms). A one-pole LPF on
  *   log-Hz smooths jumps; silence below PITCH_SILENCE_RMS holds the last
  *   detected pitch instead of dropping to 0.
  *
  *   The carrier generator inside the vocoder reads `tracked_hz` whenever
- *   the user has the "follow" toggle on.
+ *   the user has the "follow" toggle on; autotune reads it too.
  * ------------------------------------------------------------------------- */
-#define PITCH_BUF_LEN 1024 /* ~21 ms window */
-#define PITCH_HOP 480      /* refresh cadence (matches rnnoise) */
-#define PITCH_MIN_HZ 70.0f
+#define PITCH_DECIM 4
+#define PITCH_FS (SAMPLE_RATE / PITCH_DECIM) /* 12 kHz */
+#define PITCH_BUF_LEN 512                    /* ~43 ms at 12 kHz */
+#define PITCH_HOP 480                        /* refresh cadence in 48 kHz samples */
+#define PITCH_MIN_HZ 60.0f
 #define PITCH_MAX_HZ 400.0f
-#define PITCH_SILENCE_RMS 0.005f /* below this, hold last */
+#define PITCH_MAX_LAG ((int)(PITCH_FS / PITCH_MIN_HZ)) /* 200 */
+#define PITCH_SILENCE_RMS 0.002f                      /* below this, hold last */
 
 struct pitch_tracker
 {
-    float buf[PITCH_BUF_LEN];
+    struct biquad aa1, aa2;    /* 900 Hz anti-alias low-pass, 4th order */
+    int decim_phase;           /* 0..PITCH_DECIM-1 */
+    float buf[PITCH_BUF_LEN];  /* decimated samples */
     int head;                  /* next slot to write */
     int samples_since_refresh; /* fires the autocorrelation every PITCH_HOP */
     float tracked_hz;          /* smoothed estimate (Hz), held across silence */
     float log_smoother;        /* one-pole LPF state in log-Hz domain */
 };
+
+static void pitch_tracker_init(struct pitch_tracker *p)
+{
+    memset(p, 0, sizeof(*p));
+    biquad_design(&p->aa1, 4 /* LPF */, (float)SAMPLE_RATE, 900.0f, 0.541f, 0.0f);
+    biquad_design(&p->aa2, 4 /* LPF */, (float)SAMPLE_RATE, 900.0f, 1.307f, 0.0f);
+}
 
 struct vocoder_state
 {
@@ -495,6 +514,9 @@ struct vocoder_state
     float rm_phase;     /* ring-mod sub-audio sine (~35 Hz) - Matrix metallic */
     float trem_phase;   /* mechanical tremolo LFO (~5.5 Hz) - machine throb */
     uint32_t noise_lcg; /* unvoiced (sibilance) noise carrier */
+    float lvl_in;       /* ~200 ms mean square of the voice input */
+    float lvl_out;      /* ~200 ms mean square of the wet output */
+    float lvl_coef;
 };
 
 /* Linear-congruential white-noise generator for the high-band carrier.
@@ -543,7 +565,10 @@ static void vocoder_design(struct vocoder_state *v, float fs,
         v->rm_phase = 0.0f;
         v->trem_phase = 0.0f;
         v->noise_lcg = 0x9e3779b9u;
+        v->lvl_in = 0.0f;
+        v->lvl_out = 0.0f;
     }
+    v->lvl_coef = 1.0f - expf(-1.0f / (fs * 0.2f));
     v->designed = 1;
     v->designed_attack_ms = attack_ms;
     v->designed_release_ms = release_ms;
@@ -555,10 +580,15 @@ static void vocoder_design(struct vocoder_state *v, float fs,
  * lag with the highest *normalised* correlation, with parabolic interpolation
  * for sub-sample resolution. Outputs are smoothed in log-Hz space (so the
  * smoothing is octave-equivalent) and held across silence frames. */
-static void pitch_tracker_push(struct pitch_tracker *p, float x, float fs)
+static void pitch_tracker_push(struct pitch_tracker *p, float x)
 {
-    p->buf[p->head] = x;
-    p->head = (p->head + 1) % PITCH_BUF_LEN;
+    float lp = biquad_tick(&p->aa2, biquad_tick(&p->aa1, x));
+    if (++p->decim_phase >= PITCH_DECIM)
+    {
+        p->decim_phase = 0;
+        p->buf[p->head] = lp;
+        p->head = (p->head + 1) % PITCH_BUF_LEN;
+    }
     p->samples_since_refresh++;
     if (p->samples_since_refresh < PITCH_HOP)
         return;
@@ -579,27 +609,23 @@ static void pitch_tracker_push(struct pitch_tracker *p, float x, float fs)
     if (rms < PITCH_SILENCE_RMS)
         return; /* hold last */
 
-    /* Lag bounds in samples. min lag = fs/max_hz; max lag = fs/min_hz. */
-    int min_lag = (int)(fs / PITCH_MAX_HZ);
-    int max_lag = (int)(fs / PITCH_MIN_HZ);
-    if (max_lag > PITCH_BUF_LEN / 2)
-        max_lag = PITCH_BUF_LEN / 2;
-    if (min_lag < 8)
-        min_lag = 8;
+    /* Lag bounds in decimated samples. */
+    const int min_lag = (int)(PITCH_FS / PITCH_MAX_HZ);
+    const int max_lag = PITCH_MAX_LAG;
 
     /* Normalised autocorrelation: r(k) / sqrt(r0_a * r0_b). The "two
      * windows" formulation keeps the result in 0..1 and is well-conditioned
      * for voiced speech. */
-    int N = PITCH_BUF_LEN - max_lag;
+    const int N = PITCH_BUF_LEN - max_lag;
     float r0_a = 0.0f;
     for (int i = 0; i < N; i++)
         r0_a += lin[i] * lin[i];
     if (r0_a < 1e-9f)
         return;
 
-    int best_lag = min_lag;
+    float score[PITCH_MAX_LAG + 2];
     float best_score = -1.0f;
-    for (int k = min_lag; k <= max_lag; k++)
+    for (int k = min_lag; k <= max_lag + 1; k++)
     {
         float num = 0.0f;
         float r0_b = 0.0f;
@@ -608,39 +634,36 @@ static void pitch_tracker_push(struct pitch_tracker *p, float x, float fs)
             num += lin[i] * lin[i + k];
             r0_b += lin[i + k] * lin[i + k];
         }
-        if (r0_b < 1e-9f)
-            continue;
-        float score = num / sqrtf(r0_a * r0_b);
-        if (score > best_score)
-        {
-            best_score = score;
-            best_lag = k;
-        }
+        score[k] = (r0_b < 1e-9f) ? -1.0f : num / sqrtf(r0_a * r0_b);
+        if (k <= max_lag && score[k] > best_score)
+            best_score = score[k];
     }
 
     /* Reject weak / unvoiced frames so we don't track room rumble. */
     if (best_score < 0.4f)
         return;
 
+    /* A periodic voice correlates almost as well at 2T and 3T as at T, and
+     * picking the global maximum lands an octave low whenever 2T happens to
+     * edge ahead. Take the shortest-lag local peak that is close to the
+     * best one instead. */
+    int best_lag = max_lag;
+    for (int k = min_lag + 1; k < max_lag; k++)
+    {
+        if (score[k] >= 0.9f * best_score && score[k] >= score[k - 1] && score[k] >= score[k + 1])
+        {
+            best_lag = k;
+            break;
+        }
+    }
+    float peak = score[best_lag];
+
     /* Parabolic interpolation around the peak for sub-sample lag. */
     float lag = (float)best_lag;
     if (best_lag > min_lag && best_lag < max_lag)
     {
-        float ym = 0.0f, yp = 0.0f, num_m = 0.0f, num_p = 0.0f;
-        float r0_bm = 0.0f, r0_bp = 0.0f;
-        int km = best_lag - 1, kp = best_lag + 1;
-        for (int i = 0; i < N; i++)
-        {
-            num_m += lin[i] * lin[i + km];
-            num_p += lin[i] * lin[i + kp];
-            r0_bm += lin[i + km] * lin[i + km];
-            r0_bp += lin[i + kp] * lin[i + kp];
-        }
-        if (r0_bm > 1e-9f)
-            ym = num_m / sqrtf(r0_a * r0_bm);
-        if (r0_bp > 1e-9f)
-            yp = num_p / sqrtf(r0_a * r0_bp);
-        float denom = (ym - 2.0f * best_score + yp);
+        float ym = score[best_lag - 1], yp = score[best_lag + 1];
+        float denom = (ym - 2.0f * peak + yp);
         if (fabsf(denom) > 1e-6f)
         {
             float delta = 0.5f * (ym - yp) / denom;
@@ -649,7 +672,7 @@ static void pitch_tracker_push(struct pitch_tracker *p, float x, float fs)
         }
     }
 
-    float instant_hz = fs / lag;
+    float instant_hz = (float)PITCH_FS / lag;
     if (instant_hz < PITCH_MIN_HZ)
         instant_hz = PITCH_MIN_HZ;
     if (instant_hz > PITCH_MAX_HZ)
@@ -792,6 +815,21 @@ static inline float vocoder_tick(struct vocoder_state *v, float x,
     float trem_depth = 0.18f * intensity;
     out *= (1.0f - trem_depth) +
            trem_depth * sinf(2.0f * (float)M_PI * v->trem_phase);
+
+    /* Level match. The wet signal is band envelope times band-limited
+     * carrier, so its loudness moves with carrier pitch, detune, envelope
+     * times and Matrix intensity - measured 5..19 dB under the voice. With
+     * a fixed makeup gain, raising Mix mostly turned the volume down. Scale
+     * the wet side to the voice over ~200 ms so Mix changes timbre, not
+     * loudness. The floor keeps silence at unity gain. */
+    v->lvl_in += v->lvl_coef * (x * x - v->lvl_in);
+    v->lvl_out += v->lvl_coef * (out * out - v->lvl_out);
+    float g = sqrtf((v->lvl_in + 1e-9f) / (v->lvl_out + 1e-9f));
+    if (g < 0.25f)
+        g = 0.25f;
+    if (g > 16.0f)
+        g = 16.0f;
+    out *= g;
 
     return x * (1.0f - mix) + out * mix;
 }
@@ -1221,6 +1259,8 @@ static inline uint32_t ring_push(struct post_ring *r, uint32_t head, float v)
  * The post-DSP ring is what cb_out_process drains when an app is recording.
  * Visualization snapshots are published from here so the UI keeps updating
  * even when no app is consuming the virtual mic. */
+static void dsp_process_block(const float *in, uint32_t n_samples);
+
 static void cb_in_process(void *userdata)
 {
     struct stream_ctx *ctx = userdata;
@@ -1234,9 +1274,14 @@ static void cb_in_process(void *userdata)
         return;
     }
     uint32_t stride = sizeof(float);
-    uint32_t n_samples = buf->datas[0].chunk->size / stride;
-    const float *in = buf->datas[0].data;
+    dsp_process_block(buf->datas[0].data, buf->datas[0].chunk->size / stride);
+    pw_stream_queue_buffer(ctx->stream, b);
+}
 
+/* The whole DSP chain for one capture block, kept free of PipeWire calls so
+ * tests/offline can run the exact same code on a file. */
+static void dsp_process_block(const float *in, uint32_t n_samples)
+{
     rt_refresh_eq();
     rt_refresh_voice_bpf();
 
@@ -1488,7 +1533,7 @@ static void cb_in_process(void *userdata)
         /* Pitch tracker reads the unprocessed (post-rnnoise) signal so the
          * autotune and follow-mode estimates reflect the speaker's actual
          * pitch, not a pitch-shifted version of it. */
-        pitch_tracker_push(&g_rt.pitch, y, (float)SAMPLE_RATE);
+        pitch_tracker_push(&g_rt.pitch, y);
 
         /* Stage 2a: pitch shifter / autotune. Smoothed ratio drives the
          * granular shifter; bypassed automatically when the ratio is at
@@ -1586,7 +1631,6 @@ static void cb_in_process(void *userdata)
     }
     atomic_store_explicit(&g_post.head, phead, memory_order_release);
     atomic_store_explicit(&g_mon.head, mhead, memory_order_release);
-    pw_stream_queue_buffer(ctx->stream, b);
 
     /* Publish snapshot every ~16 ms */
     if (g_rt.rms_n >= FRAME_EMIT_SAMPLES)
@@ -2245,9 +2289,9 @@ static void do_quit(void *userdata, int signal_number)
     pw_main_loop_quit(app->loop);
 }
 
-int main(int argc, char *argv[])
+/* Parameter defaults + DSP state. Shared by main() and tests/offline. */
+static int dsp_init(void)
 {
-    pw_init(&argc, &argv);
     params_init();
     spectrum_init();
 
@@ -2255,7 +2299,7 @@ int main(int argc, char *argv[])
     if (!g_rt.rn)
     {
         fprintf(stderr, "rnnoise_create failed\n");
-        return 1;
+        return -1;
     }
     /* Pre-design EQ defaults */
     for (int i = 0; i < GHA_EQ_BANDS; i++)
@@ -2285,10 +2329,20 @@ int main(int argc, char *argv[])
     /* Stutter gate starts fully open so any preset transition is silent. */
     g_rt.stutter_gain = 1.0f;
     g_rt.stutter_phase = 0.0f;
+    pitch_tracker_init(&g_rt.pitch);
     /* Pre-design vocoder so the first audio frame doesn't pay the cost. */
     vocoder_design(&g_rt.vocoder, (float)SAMPLE_RATE,
                    atomic_load(&g_params.vocoder_attack_ms),
                    atomic_load(&g_params.vocoder_release_ms));
+    return 0;
+}
+
+#ifndef GHA_NO_MAIN
+int main(int argc, char *argv[])
+{
+    pw_init(&argc, &argv);
+    if (dsp_init() < 0)
+        return 1;
 
     struct app *app = &g_app;
     memset(app, 0, sizeof(*app));
@@ -2400,3 +2454,4 @@ int main(int argc, char *argv[])
     pw_deinit();
     return 0;
 }
+#endif /* GHA_NO_MAIN */

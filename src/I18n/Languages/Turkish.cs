@@ -844,6 +844,15 @@ public static class Turkish
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Zarf atağı",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metalik",
+        ["audio_vocoder_voice"] = "Ses efektleri",
+        ["audio_vocoder_pitch"] = "Perde kaydırma",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Alçak kesme",
+        ["audio_vocoder_highcut"] = "Yüksek kesme",
+        ["audio_vocoder_crush"] = "Bit ezme",
+        ["audio_vocoder_downsample"] = "Örnek azaltma",
+        ["audio_vocoder_stutter"] = "Kesik kesik",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

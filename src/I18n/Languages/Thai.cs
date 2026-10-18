@@ -847,6 +847,15 @@ public static class Thai
         ["audio_vocoder_detune"] = "ดีจูน",
         ["audio_vocoder_attack"] = "การโจมตีอินเวลโลป",
         ["audio_vocoder_release"] = "รีลีส",
+        ["audio_vocoder_matrix"] = "โลหะ",
+        ["audio_vocoder_voice"] = "เอฟเฟกต์เสียงพูด",
+        ["audio_vocoder_pitch"] = "เลื่อนระดับเสียง",
+        ["audio_vocoder_autotune"] = "ออโต้จูน",
+        ["audio_vocoder_lowcut"] = "ตัดเสียงต่ำ",
+        ["audio_vocoder_highcut"] = "ตัดเสียงสูง",
+        ["audio_vocoder_crush"] = "บิตครัช",
+        ["audio_vocoder_downsample"] = "ดาวน์แซมเปิล",
+        ["audio_vocoder_stutter"] = "เสียงขาดเป็นช่วง",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

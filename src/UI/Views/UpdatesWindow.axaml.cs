@@ -511,6 +511,11 @@ public partial class UpdatesWindow : Window
                 _model = biosRaw;
                 _biosVersion = null;
             }
+
+            // ROG NUC: BIOS prefix (e.g. JNARLR79) is not a support catalog
+            // model, the DMI product name is. Upstream seerge/g-helper#6073.
+            if (Helpers.AppConfig.ContainsModel("NUC"))
+                _model = Helpers.AppConfig.GetModelShort();
         }
 
         var modelName = App.System?.GetModelName() ?? Labels.Get("unknown");

@@ -844,6 +844,15 @@ public static class Ukrainian
         ["audio_vocoder_detune"] = "Розлад",
         ["audio_vocoder_attack"] = "Атака обвідної",
         ["audio_vocoder_release"] = "Спад",
+        ["audio_vocoder_matrix"] = "Металевий",
+        ["audio_vocoder_voice"] = "Ефекти голосу",
+        ["audio_vocoder_pitch"] = "Зсув висоти",
+        ["audio_vocoder_autotune"] = "Автотюн",
+        ["audio_vocoder_lowcut"] = "Зріз низьких",
+        ["audio_vocoder_highcut"] = "Зріз високих",
+        ["audio_vocoder_crush"] = "Біткрашер",
+        ["audio_vocoder_downsample"] = "Зниження частоти",
+        ["audio_vocoder_stutter"] = "Заїкання",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

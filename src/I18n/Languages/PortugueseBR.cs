@@ -844,6 +844,15 @@ public static class PortugueseBR
         ["audio_vocoder_detune"] = "Desafinação",
         ["audio_vocoder_attack"] = "Ataque do envelope",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metálico",
+        ["audio_vocoder_voice"] = "Efeitos de voz",
+        ["audio_vocoder_pitch"] = "Mudança de tom",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Corte de graves",
+        ["audio_vocoder_highcut"] = "Corte de agudos",
+        ["audio_vocoder_crush"] = "Bitcrusher",
+        ["audio_vocoder_downsample"] = "Subamostragem",
+        ["audio_vocoder_stutter"] = "Picotado",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

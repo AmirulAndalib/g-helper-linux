@@ -847,6 +847,15 @@ public static class Macedonian
         ["audio_vocoder_detune"] = "Растројување",
         ["audio_vocoder_attack"] = "Атак на обвивка",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Метален",
+        ["audio_vocoder_voice"] = "Гласовни ефекти",
+        ["audio_vocoder_pitch"] = "Поместување на тон",
+        ["audio_vocoder_autotune"] = "Автотјун",
+        ["audio_vocoder_lowcut"] = "Сечење ниски",
+        ["audio_vocoder_highcut"] = "Сечење високи",
+        ["audio_vocoder_crush"] = "Бит кршење",
+        ["audio_vocoder_downsample"] = "Намалување семплирање",
+        ["audio_vocoder_stutter"] = "Сецкање",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

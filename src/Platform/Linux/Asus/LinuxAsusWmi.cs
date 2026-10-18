@@ -1204,11 +1204,12 @@ public class LinuxAsusWmi : IHardwareControl
 
     /// <summary>
     /// Set TUF keyboard RGB power state via sysfs kbd_rgb_state attribute.
-    /// Controls which lighting states are active (boot/awake/sleep).
-    /// Format: space-separated byte array "cmd boot awake sleep keyboard"
-    /// Learned from asusctl: rog-aura/src/keyboard/power.rs TUF format
+    /// Controls which lighting states are active (boot/awake/sleep/shutdown).
+    /// Format: "cmd boot awake sleep shutdown". The kernel names the 5th
+    /// value "keyboard", but it is the shutdown bit (bit 7, kbd lit during S5).
+    /// asusctl e6098d61, g-helper AsusACPI.TUFKeyboardPower.
     /// </summary>
-    public void SetKeyboardRgbState(bool boot, bool awake, bool sleep)
+    public void SetKeyboardRgbState(bool boot, bool awake, bool sleep, bool shutdown)
     {
         var statePath = Path.Combine(SysfsHelper.Leds, "asus::kbd_backlight", "kbd_rgb_state");
         if (!SysfsHelper.Exists(statePath))
@@ -1216,8 +1217,7 @@ public class LinuxAsusWmi : IHardwareControl
             Helpers.Logger.WriteLine($"kbd_rgb_state not available at {statePath}");
             return;
         }
-        // Protocol: [1, boot, awake, sleep, 1] - matches asusctl's TUF power state
-        string value = $"1 {(boot ? 1 : 0)} {(awake ? 1 : 0)} {(sleep ? 1 : 0)} 1";
+        string value = $"1 {(boot ? 1 : 0)} {(awake ? 1 : 0)} {(sleep ? 1 : 0)} {(shutdown ? 1 : 0)}";
         SysfsHelper.WriteAttribute(statePath, value);
     }
 

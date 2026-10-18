@@ -325,6 +325,15 @@ public static class Bengali
         ["audio_vocoder_detune"] = "ডিটিউন",
         ["audio_vocoder_attack"] = "এনভেলপ অ্যাটাক",
         ["audio_vocoder_release"] = "রিলিজ",
+        ["audio_vocoder_matrix"] = "ধাতব",
+        ["audio_vocoder_voice"] = "কণ্ঠ ইফেক্ট",
+        ["audio_vocoder_pitch"] = "পিচ শিফট",
+        ["audio_vocoder_autotune"] = "অটোটিউন",
+        ["audio_vocoder_lowcut"] = "লো কাট",
+        ["audio_vocoder_highcut"] = "হাই কাট",
+        ["audio_vocoder_crush"] = "বিট ক্রাশ",
+        ["audio_vocoder_downsample"] = "ডাউনস্যাম্পল",
+        ["audio_vocoder_stutter"] = "স্টাটার",
 
         // KEY NAMES
         ["key_m4"] = "ROG / M5 কী",

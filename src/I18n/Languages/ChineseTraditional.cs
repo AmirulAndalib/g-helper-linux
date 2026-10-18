@@ -847,6 +847,15 @@ public static class ChineseTraditional
         ["audio_vocoder_detune"] = "失諧",
         ["audio_vocoder_attack"] = "包絡起音",
         ["audio_vocoder_release"] = "釋放",
+        ["audio_vocoder_matrix"] = "金屬感",
+        ["audio_vocoder_voice"] = "人聲效果",
+        ["audio_vocoder_pitch"] = "變調",
+        ["audio_vocoder_autotune"] = "自動修音",
+        ["audio_vocoder_lowcut"] = "低切",
+        ["audio_vocoder_highcut"] = "高切",
+        ["audio_vocoder_crush"] = "位元壓縮",
+        ["audio_vocoder_downsample"] = "降取樣",
+        ["audio_vocoder_stutter"] = "斷續",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

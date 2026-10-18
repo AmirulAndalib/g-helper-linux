@@ -844,6 +844,15 @@ public static class Russian
         ["audio_vocoder_detune"] = "Расстройка",
         ["audio_vocoder_attack"] = "Атака огибающей",
         ["audio_vocoder_release"] = "Спад",
+        ["audio_vocoder_matrix"] = "Металлический",
+        ["audio_vocoder_voice"] = "Эффекты голоса",
+        ["audio_vocoder_pitch"] = "Сдвиг высоты",
+        ["audio_vocoder_autotune"] = "Автотюн",
+        ["audio_vocoder_lowcut"] = "Срез низких",
+        ["audio_vocoder_highcut"] = "Срез высоких",
+        ["audio_vocoder_crush"] = "Биткрашер",
+        ["audio_vocoder_downsample"] = "Понижение частоты",
+        ["audio_vocoder_stutter"] = "Заикание",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

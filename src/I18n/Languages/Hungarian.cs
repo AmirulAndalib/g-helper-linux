@@ -844,6 +844,15 @@ public static class Hungarian
         ["audio_vocoder_detune"] = "Hangolás eltolás",
         ["audio_vocoder_attack"] = "Burkológörbe atak",
         ["audio_vocoder_release"] = "Kicsengés",
+        ["audio_vocoder_matrix"] = "Fémes",
+        ["audio_vocoder_voice"] = "Hangeffektek",
+        ["audio_vocoder_pitch"] = "Hangmagasság-eltolás",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Mélyvágás",
+        ["audio_vocoder_highcut"] = "Magasvágás",
+        ["audio_vocoder_crush"] = "Bitcsökkentés",
+        ["audio_vocoder_downsample"] = "Mintavétel-csökkentés",
+        ["audio_vocoder_stutter"] = "Szaggatás",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

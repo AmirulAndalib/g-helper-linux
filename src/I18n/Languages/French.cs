@@ -844,6 +844,15 @@ public static class French
         ["audio_vocoder_detune"] = "Désaccord",
         ["audio_vocoder_attack"] = "Attaque enveloppe",
         ["audio_vocoder_release"] = "Relâchement",
+        ["audio_vocoder_matrix"] = "Métallique",
+        ["audio_vocoder_voice"] = "Effets de voix",
+        ["audio_vocoder_pitch"] = "Transposition",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Coupe-bas",
+        ["audio_vocoder_highcut"] = "Coupe-haut",
+        ["audio_vocoder_crush"] = "Bitcrusher",
+        ["audio_vocoder_downsample"] = "Sous-échantillonnage",
+        ["audio_vocoder_stutter"] = "Hachage",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)

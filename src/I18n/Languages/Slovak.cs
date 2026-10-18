@@ -325,6 +325,15 @@ public static class Slovak
         ["audio_vocoder_detune"] = "Rozladenie",
         ["audio_vocoder_attack"] = "Nábeh obálky",
         ["audio_vocoder_release"] = "Uvoľnenie",
+        ["audio_vocoder_matrix"] = "Kovový",
+        ["audio_vocoder_voice"] = "Hlasové efekty",
+        ["audio_vocoder_pitch"] = "Posun výšky",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Orezanie basov",
+        ["audio_vocoder_highcut"] = "Orezanie výšok",
+        ["audio_vocoder_crush"] = "Bitová redukcia",
+        ["audio_vocoder_downsample"] = "Podvzorkovanie",
+        ["audio_vocoder_stutter"] = "Sekanie",
 
         // KEY NAMES
         ["key_m4"] = "Kláves ROG / M5",

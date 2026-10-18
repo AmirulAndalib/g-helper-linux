@@ -10,6 +10,7 @@ build/
 audio-helper/*.o
 audio-helper/rnnoise/*.o
 audio-helper/ghelper-audio
+audio-helper/render
 audio-helper/tests/cs/bin/
 audio-helper/tests/cs/obj/
 

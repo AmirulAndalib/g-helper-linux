@@ -847,6 +847,15 @@ public static class Swedish
         ["audio_vocoder_detune"] = "Detune",
         ["audio_vocoder_attack"] = "Envelope-attack",
         ["audio_vocoder_release"] = "Release",
+        ["audio_vocoder_matrix"] = "Metallisk",
+        ["audio_vocoder_voice"] = "Rösteffekter",
+        ["audio_vocoder_pitch"] = "Tonhöjdsförskjutning",
+        ["audio_vocoder_autotune"] = "Autotune",
+        ["audio_vocoder_lowcut"] = "Lågklipp",
+        ["audio_vocoder_highcut"] = "Högklipp",
+        ["audio_vocoder_crush"] = "Bitkrossning",
+        ["audio_vocoder_downsample"] = "Nedsampling",
+        ["audio_vocoder_stutter"] = "Hackning",
 
 
         // SYSTEM INTEGRATION FILES (self-installer)
