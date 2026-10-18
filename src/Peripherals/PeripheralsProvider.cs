@@ -50,7 +50,9 @@ public static class PeripheralsProvider
         DetectMouse(new Mouse.Models.GladiusIIIAimpointWired());
         DetectMouse(new Mouse.Models.GladiusIIOrigin());
         DetectMouse(new Mouse.Models.GladiusIIOriginPink());
+        DetectMouse(new Mouse.Models.GladiusIIOriginCOD());
         DetectMouse(new Mouse.Models.GladiusII());
+        DetectMouse(new Mouse.Models.GladiusIICore());
         DetectMouse(new Mouse.Models.GladiusIIWireless());
         DetectMouse(new Mouse.Models.KerisWireless());
         DetectMouse(new Mouse.Models.KerisWirelessWired());

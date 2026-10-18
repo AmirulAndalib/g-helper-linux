@@ -31,3 +31,17 @@ public class GladiusIIOriginPink : GladiusIIOrigin
     public override LightingZone[] SupportedLightingZones() =>
         [LightingZone.Scrollwheel, LightingZone.Underglow];
 }
+
+public class GladiusIIOriginCOD : GladiusIIOrigin
+{
+    public GladiusIIOriginCOD() : base(0x18B1, "mi_02", false) { }
+    public override string GetDisplayName() => "ROG Gladius II Origin COD";
+}
+
+public class GladiusIICore : StrixImpactII
+{
+    public GladiusIICore() : base(0x18DD, "mi_00", false) { }
+    public override string GetDisplayName() => "ROG Gladius II Core";
+    public override LightingZone[] SupportedLightingZones() =>
+        [LightingZone.Logo, LightingZone.Scrollwheel];
+}
