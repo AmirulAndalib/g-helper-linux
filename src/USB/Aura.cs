@@ -191,6 +191,7 @@ public static class Aura
 
     /// <summary>Probed: device has rear-glow (rear panel light, e.g. Strix Scar / Z13 lid).</summary>
     public static bool HasRearglow { get; private set; }
+    private static bool _hasRearStrip;
 
     /// <summary>White-only keyboard flag. Initialized from <see cref="Helpers.AppConfig.IsWhite"/>
     /// (model list); FORCED to <c>true</c> by the probe FEAT2_ONE_ZONE_RED_EFFECT bit.
@@ -643,6 +644,7 @@ public static class Aura
             HasLightbar = (feat1 & FEAT1_LIGHTBAR) != 0;
             // VCUT bit = rearglow on old Scar. (#5590)
             HasRearglow = (feat1 & (FEAT1_REARGLOW | FEAT1_VCUT)) != 0 || AppConfig.IsZ13();
+            _hasRearStrip = (feat1 & FEAT1_REARGLOW) != 0;
 
             // FEAT2 ONE_ZONE_RED_EFFECT means white-only keyboard (single-zone
             // red firmware effect mapped to white). Force-flip the mutable static
@@ -1326,6 +1328,39 @@ public static class Aura
         // Send remaining lightbar LEDs
         Buffer.BlockCopy(keyBuf, 3 * keySet, buffer, 9, 3 * (ledCount - keySet));
         AsusHid.SetFeatureAura(buffer);
+
+        if (!_hasRearStrip || colors.Length < 12)
+            return;
+
+        // Rear strip: 39 LEDs, gradient across zones 0..3
+        const byte rearCount = 39;
+        buffer[4] = 0x05;
+
+        for (int i = 0; i < rearCount; i += ledsPerPacket)
+        {
+            byte leds = (byte)Math.Min(ledsPerPacket, rearCount - i);
+
+            buffer[6] = (byte)(i + 1);
+            buffer[7] = leds;
+
+            for (int n = 0; n < leds; n++)
+            {
+                float f = (i + n) / (float)(rearCount - 1) * 3;
+                int z = Math.Min(2, (int)f);
+                var c = ColorUtils.GetWeightedAverage(
+                    Avalonia.Media.Color.FromRgb(colors[z * 3], colors[z * 3 + 1], colors[z * 3 + 2]),
+                    Avalonia.Media.Color.FromRgb(colors[z * 3 + 3], colors[z * 3 + 4], colors[z * 3 + 5]),
+                    f - z);
+
+                buffer[9 + n * 3] = c.R;
+                buffer[10 + n * 3] = c.G;
+                buffer[11 + n * 3] = c.B;
+            }
+
+            Array.Clear(buffer, 9 + leds * 3, buffer.Length - 9 - leds * 3);
+            AsusHid.SetFeatureAura(buffer);
+            Thread.Sleep(1);
+        }
     }
 
     /// <summary>
