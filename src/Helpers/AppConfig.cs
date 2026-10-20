@@ -516,7 +516,7 @@ public static class AppConfig
     /// RC72L Ally X, RC73 next-gen), not a bare "RC7" substring that could
     /// match unrelated product names.</summary>
     public static bool IsAlly() =>
-        ContainsModel("RC71") || ContainsModel("RC72") || ContainsModel("RC73");
+        ContainsModel("RC71") || ContainsModel("RC72") || ContainsModel("RC73") || ContainsModel("RC74");
 
     /// <summary>Lenovo Legion Go family, by DMI product_name numbers (same
     /// list hhd matches): Go 83E1, Go 2 83N0/83N1, Go S 83L3/83N6/83Q2/83Q3.</summary>
@@ -558,7 +558,18 @@ public static class AppConfig
         ContainsModel("FA506") || ContainsModel("FX517") || ContainsModel("FX608");
 
     public static bool NoGpu() => Is("no_gpu") || ContainsModel("UX540") || ContainsModel("M560") || ContainsModel("GZ302") || IsOnlyAIMAX();
-    public static bool IsAMDiGPU() => ContainsModel("GV301RA") || ContainsModel("GV302XA") || ContainsModel("GZ302") || IsOnlyAIMAX() || IsAlly();
+    public static bool IsAMDiGPU() => ContainsModel("GV301RA") || ContainsModel("GV302XA") || ContainsModel("GZ302") || IsOnlyAIMAX() || IsAlly() ||
+        ContainsModel("BM140") || ContainsModel("BM150") || ContainsModel("BM3406CH") || ContainsModel("BM3606CH") ||
+        ContainsModel("E1404F") || ContainsModel("L5404") || ContainsModel("M1405") || ContainsModel("M1407") ||
+        ContainsModel("M1502") || ContainsModel("M1505") || ContainsModel("M1605") || ContainsModel("M1607G") ||
+        ContainsModel("M1607K") || ContainsModel("M1807") || ContainsModel("M3401QA") || ContainsModel("M3407") ||
+        ContainsModel("M3500QA") || ContainsModel("M3504Y") || ContainsModel("M3604") || ContainsModel("M3607") ||
+        ContainsModel("M3704") || ContainsModel("M5406K") || ContainsModel("M5406N") || ContainsModel("M5406U") ||
+        ContainsModel("M5406W") || ContainsModel("M5506") || ContainsModel("M5606K") || ContainsModel("M5606N") ||
+        ContainsModel("M5606U") || ContainsModel("M5606W") || ContainsModel("PM140") || ContainsModel("PM150") ||
+        ContainsModel("PM3406CH") || ContainsModel("PM3606CH") || ContainsModel("TM420U") || ContainsModel("TN360") ||
+        ContainsModel("UM3406") || ContainsModel("UM425UA") || ContainsModel("UM5406") || ContainsModel("UM560") ||
+        ContainsModel("UX3480K") || ContainsModel("X1652") || ContainsModel("X515U");
 
     public static bool IsForceSetGPUMode() => Is("gpu_mode_force_set") || (ContainsModel("503") && IsNotFalse("gpu_mode_force_set"));
     public static bool IsShutdownReset() => Is("shutdown_reset") || ContainsModel("FX507Z");
@@ -567,9 +578,34 @@ public static class AppConfig
     public static bool IsChargeLimit6080() => ContainsModel("GU405") || ContainsModel("GU606") || ContainsModel("H760") || ContainsModel("GA403") || ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("GA503R") || (IsTUF() && !(ContainsModel("FX507Z") || ContainsModel("FA617") || ContainsModel("FA607") || ContainsModel("FX607")));
 
     // Dynamic boost
-    public static bool DynamicBoost5() => ContainsModel("GZ301ZE");
-    public static bool DynamicBoost15() => ContainsModel("FX507ZC4") || ContainsModel("GA403UM") || ContainsModel("GU605CP") || ContainsModel("FX608J") || ContainsModel("FX608L") || ContainsModel("FA608U") || ContainsModel("FA608P") || ContainsModel("FA401K") || ContainsModel("FA401UM") || ContainsModel("FA401UH") || ContainsModel("GA403GM") || ContainsModel("GU405AM") || ContainsModel("GU405AP") || ContainsModel("GU606AM") || ContainsModel("GU606AP");
-    public static bool DynamicBoost20() => ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("GU405");
+    public static bool DynamicBoost5() => ContainsModel("GZ301ZE") ||
+        ContainsModel("GV301RC") || ContainsModel("N7400PC");
+    public static bool DynamicBoost15() => ContainsModel("FX507ZC4") || ContainsModel("GA403UM") || ContainsModel("GU605CP") || ContainsModel("FX608J") || ContainsModel("FX608L") || ContainsModel("FA608U") || ContainsModel("FA608P") || ContainsModel("FA401K") || ContainsModel("FA401UM") || ContainsModel("FA401UH") || ContainsModel("GA403GM") || ContainsModel("GU405AM") || ContainsModel("GU405AP") || ContainsModel("GU606AM") || ContainsModel("GU606AP") ||
+        ContainsModel("FA401GM") || ContainsModel("FA608WM") || ContainsModel("FA608WP") || ContainsModel("FA707RC") ||
+        ContainsModel("FA707RE") || ContainsModel("FA808PM") || ContainsModel("FA808PP") || ContainsModel("FA808UH") ||
+        ContainsModel("FA808UM") || ContainsModel("FA808UP") || ContainsModel("FX517ZC") || ContainsModel("FX517ZE") ||
+        ContainsModel("FX607VJ") || ContainsModel("FX610JP") || ContainsModel("FX610U") || ContainsModel("FX707VJB") ||
+        ContainsModel("G513IC") || ContainsModel("G513IE") || ContainsModel("G513IH") || ContainsModel("G513IM") ||
+        ContainsModel("G513QC") || ContainsModel("G513QE") || ContainsModel("G513QM") || ContainsModel("G513QR") ||
+        ContainsModel("G533QM") || ContainsModel("G533QR") || ContainsModel("G533QS") || ContainsModel("G614FM") ||
+        ContainsModel("G614FP") || ContainsModel("G614PM") || ContainsModel("G614PP") ||
+        ContainsModel("G713IC") || ContainsModel("G713IE") || ContainsModel("G713IH") ||
+        ContainsModel("G713IM") || ContainsModel("G713QC") || ContainsModel("G713QE") || ContainsModel("G713QM") ||
+        ContainsModel("G713QR") || ContainsModel("G713RC") || ContainsModel("G733QM") || ContainsModel("G733QR") ||
+        ContainsModel("G733QS") || ContainsModel("G814FM") || ContainsModel("G814FP") || ContainsModel("G814PM") ||
+        ContainsModel("G814PP") || ContainsModel("GA402NJ") || ContainsModel("GA403UH") ||
+        ContainsModel("GA403UP") || ContainsModel("GA403WM") || ContainsModel("GA403WP") || ContainsModel("GA503QC") ||
+        ContainsModel("GA503QE") || ContainsModel("GA503QM") ||
+        ContainsModel("GU603HE") || ContainsModel("GU603HM") ||
+        ContainsModel("GV302XI") || ContainsModel("GZ301VIC") || ContainsModel("K3500PC") || ContainsModel("M3401QC") ||
+        ContainsModel("M3500QC") || ContainsModel("M7400Q") || ContainsModel("N7600P");
+    public static bool DynamicBoost20() => ContainsModel("GU605") || ContainsModel("GA605") || ContainsModel("GU405") ||
+        ContainsModel("GA503QR") || ContainsModel("GA503QS") || ContainsModel("GA503RM") || ContainsModel("GA503RS") ||
+        ContainsModel("GA503RW") || ContainsModel("GU603HR") || ContainsModel("GU603VI") || ContainsModel("GU603VU") ||
+        ContainsModel("GU603VV") || ContainsModel("GU603ZI") || ContainsModel("GU603ZM") || ContainsModel("GU603ZU") ||
+        ContainsModel("GU603ZV") || ContainsModel("GU603ZW") || ContainsModel("GV601VI") || ContainsModel("GV601VV") ||
+        ContainsModel("H7606WI") || ContainsModel("H7606WM") || ContainsModel("H7606WP") || ContainsModel("H7606WR") ||
+        ContainsModel("H7606WU") || ContainsModel("H7606WV") || ContainsModel("H7606WW") || ContainsModel("H7606WX");
 
     // Performance mode
     public static bool IsAlwaysUltimate() => ContainsModel("FA507NUR") || ContainsModel("FA506NCR") || ContainsModel("FA507NVR");
@@ -582,7 +618,11 @@ public static class AppConfig
     /// <summary>Reapply timer seconds, 0 = off. Default 30 on models whose EC resets the temp limit under load.</summary>
     public static int GetReapplyTime() => Get("reapply_time", IsReapplyTempRequired() ? 30 : 0);
 
-    public static bool IsReapplyRyzen() => ContainsModel("G614F") || ContainsModel("G814F") || ContainsModel("G733P");
+    public static bool IsReapplyRyzen() => ContainsModel("G614F") || ContainsModel("G814F") || ContainsModel("G733P") ||
+        ContainsModel("FA607PI") || ContainsModel("FA607PV") || ContainsModel("FA608PM") || ContainsModel("FA608PP") ||
+        ContainsModel("FA808P") || ContainsModel("G614P") || ContainsModel("G713PI") || ContainsModel("G713PU") ||
+        ContainsModel("G713PV7") || ContainsModel("G814P") || ContainsModel("GX650PI") || ContainsModel("GX650PV") ||
+        ContainsModel("GX650PY") || ContainsModel("GX650PZ") || ContainsModel("GR70");
 
     // FX506HC / FA808U: if dgpu_disable=1 is the live state at shutdown,
     // these BIOSes fail to re-enumerate the dGPU on next cold boot
@@ -600,8 +640,49 @@ public static class AppConfig
     public static bool IsClampFanDots() => IsNotFalse("fan_clamp");
 
     // RGB / AURA
-    public static bool IsWhite() => ContainsModel("GA401") || ContainsModel("FX517Z") || ContainsModel("FX516P") || ContainsModel("X13") || IsARCNM() || ContainsModel("FA617N") || ContainsModel("FA617X") || NoAura() || Is("no_rgb");
-    public static bool NoAura() => (ContainsModel("GA401I") && !ContainsModel("GA401IHR")) || ContainsModel("GA502IU") || ContainsModel("HN7306") || ContainsModel("H7606") || ContainsModel("M6500X");
+    public static bool IsWhite() => ContainsModel("GA401") || ContainsModel("FX517Z") || ContainsModel("FX516P") || ContainsModel("X13") || IsARCNM() || ContainsModel("FA617N") || ContainsModel("FA617X") || NoAura() || Is("no_rgb") ||
+        ContainsModel("A7406") || ContainsModel("AM740") || ContainsModel("B1402CV") || ContainsModel("B1403") ||
+        ContainsModel("B1502CV") || ContainsModel("B1503") || ContainsModel("B2402C") || ContainsModel("B2402F") ||
+        ContainsModel("B2502C") || ContainsModel("B2502F") || ContainsModel("B3402F") || ContainsModel("B3404") ||
+        ContainsModel("B3405") || ContainsModel("B3406") || ContainsModel("B3604") || ContainsModel("B3605") ||
+        ContainsModel("B3606") || ContainsModel("B5402") || ContainsModel("B5404") || ContainsModel("B5405") ||
+        ContainsModel("B5406") || ContainsModel("B5604") || ContainsModel("B5605") || ContainsModel("B7402") ||
+        ContainsModel("B9403C") || ContainsModel("B9406") || ContainsModel("BM140") || ContainsModel("BM150") ||
+        ContainsModel("BM340") || ContainsModel("BM360") || ContainsModel("CX9406") || ContainsModel("E1404") ||
+        ContainsModel("E1504T") || ContainsModel("E410K") || ContainsModel("E510K") || ContainsModel("FA401E") ||
+        ContainsModel("FA401GM") || ContainsModel("FA401KH") || ContainsModel("FA401KM") || ContainsModel("FA401UH") ||
+        ContainsModel("FA401UM") || ContainsModel("FA401UU") || ContainsModel("FA401UV") || ContainsModel("FA401WU") ||
+        ContainsModel("FA401WV") || ContainsModel("GA503QC") || ContainsModel("GA503QE") || ContainsModel("GA503QM") ||
+        ContainsModel("GA503QR") || ContainsModel("GA503QS") || ContainsModel("GV601RE") ||
+        ContainsModel("HT7407N") || ContainsModel("K3400") || ContainsModel("K3405VA") || ContainsModel("K3405Z") ||
+        ContainsModel("K3500") || ContainsModel("K3604V") || ContainsModel("K3605") || ContainsModel("K3704") ||
+        ContainsModel("K5404") || ContainsModel("K5504VN") || ContainsModel("K6604") || ContainsModel("L5404") ||
+        ContainsModel("M1405") || ContainsModel("M1407") || ContainsModel("M1502") || ContainsModel("M1505") ||
+        ContainsModel("M1605") || ContainsModel("M1607G") || ContainsModel("M1607K") || ContainsModel("M1807") ||
+        ContainsModel("M3401Q") || ContainsModel("M3407") || ContainsModel("M3500") || ContainsModel("M3504Y") ||
+        ContainsModel("M3604") || ContainsModel("M3607") || ContainsModel("M3704") || ContainsModel("M7400Q") ||
+        ContainsModel("N6506C") || ContainsModel("N6506MU") || ContainsModel("N6506MV") || ContainsModel("N7400P") ||
+        ContainsModel("N7600P") || ContainsModel("P1403") || ContainsModel("P1503") || ContainsModel("P3405CV") ||
+        ContainsModel("P3406") || ContainsModel("P3605CV") || ContainsModel("P3606") || ContainsModel("P5405") ||
+        ContainsModel("P5406") || ContainsModel("P5605") || ContainsModel("P5606") || ContainsModel("PM140") ||
+        ContainsModel("PM150") || ContainsModel("PM340") || ContainsModel("PM360") || ContainsModel("PM540") ||
+        ContainsModel("PM560") || ContainsModel("Q530V") || ContainsModel("Q540V") || ContainsModel("S3407") ||
+        ContainsModel("S3607") || ContainsModel("S5408") || ContainsModel("S5608") || ContainsModel("TM420U") ||
+        ContainsModel("TN360") || ContainsModel("TP3407A") || ContainsModel("TP3407S") || ContainsModel("TP3604") ||
+        ContainsModel("TP3607") || ContainsModel("TP540") || ContainsModel("TP560") || ContainsModel("UM3406") ||
+        ContainsModel("UM425UA") || ContainsModel("UM5406") || ContainsModel("UM560") || ContainsModel("UP340") ||
+        ContainsModel("UX3404") || ContainsModel("UX3405") || ContainsModel("UX3407") || ContainsModel("UX348") ||
+        ContainsModel("UX3607") || ContainsModel("UX482EAR") || ContainsModel("UX482EGR") || ContainsModel("UX5304") ||
+        ContainsModel("UX5406A") || ContainsModel("UX5406S") || ContainsModel("UX5606") || ContainsModel("UX564") ||
+        ContainsModel("UX640") || ContainsModel("UX8407A") || ContainsModel("V3607") || ContainsModel("W730G5") ||
+        ContainsModel("X1404M") || ContainsModel("X1404V") || ContainsModel("X1405V") || ContainsModel("X1407") ||
+        ContainsModel("X1502") || ContainsModel("X1504V") || ContainsModel("X1505") || ContainsModel("X1605E") ||
+        ContainsModel("X1605P") || ContainsModel("X1605V") || ContainsModel("X1607") || ContainsModel("X1704M") ||
+        ContainsModel("X1704V") || ContainsModel("X515U");
+    public static bool NoAura() => (ContainsModel("GA401I") && !ContainsModel("GA401IHR")) || ContainsModel("GA502IU") || ContainsModel("HN7306") || ContainsModel("H7606") || ContainsModel("M6500X") ||
+        ContainsModel("E410K") || ContainsModel("E510K") || ContainsModel("M1405Y") || ContainsModel("M3401Q") ||
+        ContainsModel("M3500") || ContainsModel("M7400Q") || ContainsModel("UX482EAR") || ContainsModel("X1502Z") ||
+        ContainsModel("X1605E") || ContainsModel("X515U");
     public static bool IsBacklightZones() => IsStrix() || IsZ13();
 
     // 2024+ models whose lightbar/keyboard use HID LampArray for direct RGB
@@ -615,12 +696,12 @@ public static class AppConfig
     public static bool IsNoDirectRGB() =>
         ContainsModel("GA503") || ContainsModel("G533Q") || ContainsModel("GU502") || IsSlash();
     public static bool IsSlash() => ContainsModel("GA403") || ContainsModel("GU605") || ContainsModel("GA605") || IsSlashLong();
-    public static bool IsSlashLong() => ContainsModel("GA405") || ContainsModel("GU405") || ContainsModel("GU606") || ContainsModel("GX651");
+    public static bool IsSlashLong() => ContainsModel("GA405") || ContainsModel("GA403G") || ContainsModel("GU405") || ContainsModel("GU606") || ContainsModel("GX651");
     public static bool IsSlashAura() => ContainsModel("GA605") || ContainsModel("GU605C") || ContainsModel("GA403W") || ContainsModel("GA403UM") || ContainsModel("GA403UP") || ContainsModel("GA403UH") || ContainsModel("GU405") || ContainsModel("GU606");
     public static bool IsAnimeMatrix() => ContainsModel("GA401") || ContainsModel("GA402") || ContainsModel("GU604V") || ContainsModel("G835") || ContainsModel("G815") || ContainsModel("G635") || ContainsModel("G615");
 
     // Dynamic Lighting
-    public static bool IsDynamicLighting() => IsSlash() || IsIntelHX() || IsTUF() || IsZ13();
+    public static bool IsDynamicLighting() => IsSlash() || (IsIntelHX() && !ContainsModel("G733C")) || IsTUF() || IsZ13();
     public static bool IsDynamicLightingOnly() => ContainsModel("S560") || ContainsModel("M540") || ContainsModel("UX760");
     public static bool IsDynamicLightingInit() => ContainsModel("FA608") || Is("lighting_init");
 
@@ -709,9 +790,19 @@ public static class AppConfig
     public static bool IsNoFNV() => ContainsModel("FX507") || ContainsModel("FX707");
 
     // CPU platform
-    public static bool IsIntelHX() => ContainsModel("G814") || ContainsModel("G614") || ContainsModel("G834") || ContainsModel("G634") || ContainsModel("G835") || ContainsModel("G635") || ContainsModel("G815") || ContainsModel("G615");
+    public static bool IsIntelHX() => ContainsModel("G814") || ContainsModel("G614") || ContainsModel("G834") || ContainsModel("G634") || ContainsModel("G835") || ContainsModel("G635") || ContainsModel("G815") || ContainsModel("G615") || ContainsModel("G733C");
     public static bool Is8Ecores() => ContainsModel("FX507Z") || ContainsModel("GU603ZV");
-    public static bool IsCPULight() => ContainsModel("GA402X") || ContainsModel("GA605") || ContainsModel("GA403") || ContainsModel("FA507N") || GetModelShort().Contains("FA507X") || ContainsModel("FA707N") || ContainsModel("FA707X") || ContainsModel("GZ302") || ContainsModel("GU405") || ContainsModel("GX651");
+    public static bool IsCPULight() => ContainsModel("GA402X") || ContainsModel("GA605") || ContainsModel("GA403") || ContainsModel("FA507N") || GetModelShort().Contains("FA507X") || ContainsModel("FA707N") || ContainsModel("FA707X") || ContainsModel("GZ302") || ContainsModel("GU405") || ContainsModel("GX651") ||
+        ContainsModel("FA401KM") || ContainsModel("FA401UM") || ContainsModel("FA401UV") || ContainsModel("FA401WU") ||
+        ContainsModel("FA401WV") || ContainsModel("FA507RC") || ContainsModel("FA507RE") || ContainsModel("FA507RF") ||
+        ContainsModel("FA507RM") || ContainsModel("FA507RR") || ContainsModel("FA507RW") || ContainsModel("FA507UV") ||
+        ContainsModel("FA607NUG") || ContainsModel("FA607NUQ") || ContainsModel("FA608UM") || ContainsModel("FA608WI") ||
+        ContainsModel("FA608WV") || ContainsModel("G513IC") || ContainsModel("G513IE") || ContainsModel("G513IH") ||
+        ContainsModel("G513IM") || ContainsModel("G733QS") || ContainsModel("GA401QEC") || ContainsModel("GA402NJ") ||
+        ContainsModel("GA503QM") || ContainsModel("GA503QR") || ContainsModel("GA503RM") || ContainsModel("GA503RS") ||
+        ContainsModel("GA503RW") || ContainsModel("H7606WI") || ContainsModel("H7606WM") ||
+        ContainsModel("H7606WP") || ContainsModel("H7606WR") || ContainsModel("H7606WU") || ContainsModel("H7606WV") ||
+        ContainsModel("H7606WW") || ContainsModel("H7606WX");
 
     // Display
     public static bool IsOLED() =>
