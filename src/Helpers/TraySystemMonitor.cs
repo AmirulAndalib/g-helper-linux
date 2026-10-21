@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using GHelper.Linux.I18n;
@@ -37,9 +38,7 @@ namespace GHelper.Linux.Helpers;
 ///         after color/transparency settings change. Cheap (cache aware).</item>
 /// </list>
 ///
-/// Every icon goes through <see cref="TrayRegistry"/>: since Avalonia 12.1.4
-/// a <c>TrayIcon</c> is only shown once it is in <c>TrayIcon.Icons</c> of the
-/// <c>Application</c>. Icon rendering uses SkiaSharp public API which is
+/// Native AOT note: icon rendering uses SkiaSharp public API which is
 /// trim-safe.
 /// </summary>
 public static class TraySystemMonitor
@@ -151,15 +150,15 @@ public static class TraySystemMonitor
         _timer = null;
 
         // Release SNI services for the optional icons. The main tray is
-        // owned by App.axaml.cs (DisposeTrayIcons).
+        // owned by App.axaml.cs and is disposed via Avalonia's lifetime.
         try
-        { if (_cpuTray != null) { TrayRegistry.Unregister(_cpuTray); _cpuTray = null; } }
+        { if (_cpuTray != null) { _cpuTray.IsVisible = false; _cpuTray = null; } }
         catch { }
         try
-        { if (_gpuTray != null) { TrayRegistry.Unregister(_gpuTray); _gpuTray = null; } }
+        { if (_gpuTray != null) { _gpuTray.IsVisible = false; _gpuTray = null; } }
         catch { }
         try
-        { if (_dgpuTray != null) { TrayRegistry.Unregister(_dgpuTray); _dgpuTray = null; } }
+        { if (_dgpuTray != null) { _dgpuTray.IsVisible = false; _dgpuTray = null; } }
         catch { }
         _cpuKeyValid = false;
         _gpuKeyValid = false;
@@ -348,7 +347,7 @@ public static class TraySystemMonitor
             // this the temp icons feel inert and users wonder if the app
             // crashed.
             _cpuTray.Clicked += (_, _) => _toggleMainWindow?.Invoke();
-            TrayRegistry.Register(_cpuTray);
+            TrayIcon.GetIcons(Application.Current!)?.Add(_cpuTray);
             _cpuKeyValid = false; // force first-tick render
             Logger.WriteLine("TraySystemMonitor: CPU temp icon created");
         }
@@ -365,7 +364,7 @@ public static class TraySystemMonitor
         if (_cpuTray == null)
             return;
         try
-        { TrayRegistry.Unregister(_cpuTray); }
+        { TrayIcon.GetIcons(Application.Current!)?.Remove(_cpuTray); }
         catch { }
         _cpuTray = null;
         _cpuKeyValid = false;
@@ -381,7 +380,7 @@ public static class TraySystemMonitor
             _gpuTray = new TrayIcon { IsVisible = true };
             // Same click behavior as the CPU icon - see EnsureCpuTray.
             _gpuTray.Clicked += (_, _) => _toggleMainWindow?.Invoke();
-            TrayRegistry.Register(_gpuTray);
+            TrayIcon.GetIcons(Application.Current!)?.Add(_gpuTray);
             _gpuKeyValid = false;
             Logger.WriteLine("TraySystemMonitor: GPU temp icon created");
         }
@@ -398,7 +397,7 @@ public static class TraySystemMonitor
         if (_gpuTray == null)
             return;
         try
-        { TrayRegistry.Unregister(_gpuTray); }
+        { TrayIcon.GetIcons(Application.Current!)?.Remove(_gpuTray); }
         catch { }
         _gpuTray = null;
         _gpuKeyValid = false;
@@ -413,7 +412,7 @@ public static class TraySystemMonitor
         {
             _dgpuTray = new TrayIcon { IsVisible = true };
             _dgpuTray.Clicked += (_, _) => _toggleMainWindow?.Invoke();
-            TrayRegistry.Register(_dgpuTray);
+            TrayIcon.GetIcons(Application.Current!)?.Add(_dgpuTray);
             _dgpuKeyValid = false;
             Logger.WriteLine("TraySystemMonitor: dGPU status icon created");
         }
@@ -430,7 +429,7 @@ public static class TraySystemMonitor
         if (_dgpuTray == null)
             return;
         try
-        { TrayRegistry.Unregister(_dgpuTray); }
+        { TrayIcon.GetIcons(Application.Current!)?.Remove(_dgpuTray); }
         catch { }
         _dgpuTray = null;
         _dgpuKeyValid = false;

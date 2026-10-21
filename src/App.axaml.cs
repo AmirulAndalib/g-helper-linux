@@ -713,10 +713,7 @@ public class App : Application
 
             trayIcon.Clicked += (_, _) => ToggleMainWindow();
             TrayIconInstance = trayIcon;
-
-            // Avalonia 12.1.4+: the native icon only exists once the TrayIcon is
-            // in TrayIcon.Icons of the Application (see TrayRegistry).
-            TrayRegistry.Register(trayIcon);
+            TrayIcon.SetIcons(this, new TrayIcons { trayIcon });
 
             TraySystemMonitor.Start(trayIcon, () => ToggleMainWindow());
 
@@ -1339,7 +1336,7 @@ public class App : Application
         {
             if (TrayIconInstance != null)
             {
-                TrayRegistry.Unregister(TrayIconInstance);
+                TrayIconInstance.IsVisible = false;
                 TrayIconInstance.Dispose();
                 TrayIconInstance = null;
             }
