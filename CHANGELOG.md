@@ -6,7 +6,11 @@
 
 ### Fixed
 
+- Tray icons missing since v1.0.95: Avalonia 12.1.4 only shows a tray icon once it is registered with the application (refs #220).
+
 ### Changed
+
+- CPU, GPU and dGPU tray icons set their hover text through the SNI title. The reflection into Avalonia internals that filled the Plasma tooltip no longer works on Avalonia 12 and was removed, together with `TrimmerRoots.xml`.
 
 ## v1.0.94 (2026-10-08)
 

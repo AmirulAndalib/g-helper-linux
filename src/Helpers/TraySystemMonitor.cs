@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using GHelper.Linux.I18n;
@@ -13,11 +11,9 @@ namespace GHelper.Linux.Helpers;
 /// Surfaces (in priority order):
 /// <list type="number">
 ///   <item><b>Main tray icon tooltip</b> - hover text on the existing
-///         performance-mode icon. KDE Plasma reads the SNI <c>ToolTip</c>
-///         property which Avalonia 12.x leaves empty for the public
-///         <c>TrayIcon.ToolTipText</c> setter (Avalonia only writes the
-///         SNI <c>Title</c>); we reflect into the framework internals to
-///         set the real property and emit <c>NewToolTip</c>.</item>
+///         performance-mode icon, via <c>TrayIcon.ToolTipText</c> (the SNI
+///         <c>Title</c>; Avalonia leaves the SNI <c>ToolTip</c> property
+///         empty).</item>
 ///   <item><b>CPU temp tray icon</b> - optional second SNI service that
 ///         renders the live CPU temp as text on a colored background
 ///         (default blue), or transparent with auto-contrast outline.</item>
@@ -41,14 +37,10 @@ namespace GHelper.Linux.Helpers;
 ///         after color/transparency settings change. Cheap (cache aware).</item>
 /// </list>
 ///
-/// Native AOT note: the reflection path walks Avalonia internals
-/// (<c>TrayIcon._impl</c> →
-/// <c>DBusTrayIconImpl._statusNotifierItemDbusObj</c> →
-/// <c>OrgKdeStatusNotifierItemHandler.ToolTip</c> /
-/// <c>EmitNewToolTip</c>). Those members are preserved by
-/// <c>TrimmerRoots.xml</c> at the project root so the trimmer doesn't
-/// strip the metadata at publish time. Icon rendering uses SkiaSharp
-/// public API which is trim-safe.
+/// Every icon goes through <see cref="TrayRegistry"/>: since Avalonia 12.1.4
+/// a <c>TrayIcon</c> is only shown once it is in <c>TrayIcon.Icons</c> of the
+/// <c>Application</c>. Icon rendering uses SkiaSharp public API which is
+/// trim-safe.
 /// </summary>
 public static class TraySystemMonitor
 {
@@ -159,15 +151,15 @@ public static class TraySystemMonitor
         _timer = null;
 
         // Release SNI services for the optional icons. The main tray is
-        // owned by App.axaml.cs and is disposed via Avalonia's lifetime.
+        // owned by App.axaml.cs (DisposeTrayIcons).
         try
-        { if (_cpuTray != null) { _cpuTray.IsVisible = false; _cpuTray = null; } }
+        { if (_cpuTray != null) { TrayRegistry.Unregister(_cpuTray); _cpuTray = null; } }
         catch { }
         try
-        { if (_gpuTray != null) { _gpuTray.IsVisible = false; _gpuTray = null; } }
+        { if (_gpuTray != null) { TrayRegistry.Unregister(_gpuTray); _gpuTray = null; } }
         catch { }
         try
-        { if (_dgpuTray != null) { _dgpuTray.IsVisible = false; _dgpuTray = null; } }
+        { if (_dgpuTray != null) { TrayRegistry.Unregister(_dgpuTray); _dgpuTray = null; } }
         catch { }
         _cpuKeyValid = false;
         _gpuKeyValid = false;
@@ -278,8 +270,8 @@ public static class TraySystemMonitor
             // a confirmation that this is the CPU (not GPU). Reuses the
             // same i18n key ("tray_tooltip_cpu" = "CPU: {0}") that the main
             // icon uses, so we get free localization across all 29 langs.
-            TrySetSniTooltip(_cpuTray,
-                Labels.Format("tray_tooltip_cpu", cpuTemp > 0 ? TempHelper.FormatTemp(cpuTemp) : "--"));
+            _cpuTray.ToolTipText =
+                Labels.Format("tray_tooltip_cpu", cpuTemp > 0 ? TempHelper.FormatTemp(cpuTemp) : "--");
         }
 
         // Surface 3: GPU temp icon (if active).
@@ -287,8 +279,8 @@ public static class TraySystemMonitor
         {
             UpdateGpuIcon(gpuTemp);
             // Mirror of CPU tooltip - see above.
-            TrySetSniTooltip(_gpuTray,
-                Labels.Format("tray_tooltip_gpu", gpuTemp > 0 ? TempHelper.FormatTemp(gpuTemp) : "--"));
+            _gpuTray.ToolTipText =
+                Labels.Format("tray_tooltip_gpu", gpuTemp > 0 ? TempHelper.FormatTemp(gpuTemp) : "--");
         }
 
         // Surface 4: dGPU status dot (if active). Reading runtime_status never
@@ -297,7 +289,7 @@ public static class TraySystemMonitor
         {
             string? status = Gpu.GPUModeControl.DgpuRuntimeStatus();
             UpdateDgpuIcon(status);
-            TrySetSniTooltip(_dgpuTray, "dGPU: " + (status ?? "off"));
+            _dgpuTray.ToolTipText = "dGPU: " + (status ?? "off");
         }
     }
 
@@ -324,14 +316,9 @@ public static class TraySystemMonitor
     }
 
     /// <summary>
-    /// Push <paramref name="body"/> into both surfaces:
-    /// <list type="number">
-    ///   <item>SNI <c>Title</c> (via <c>TrayIcon.ToolTipText</c>) - used
-    ///         by accessibility layers and non-KDE consumers that read
-    ///         the Title field as fallback. Cheap; harmless if ignored.</item>
-    ///   <item>SNI <c>ToolTip</c> property (via reflection into Avalonia
-    ///         internals) - what KDE Plasma actually renders on hover.</item>
-    /// </list>
+    /// Push <paramref name="body"/> to the main icon's SNI <c>Title</c> via
+    /// <c>TrayIcon.ToolTipText</c>. Hosts render it on hover (GNOME, Plasma);
+    /// accessibility layers read it as the item name.
     /// </summary>
     private static void PushTooltip(string body)
     {
@@ -339,65 +326,6 @@ public static class TraySystemMonitor
             return;
 
         _mainTray.ToolTipText = body;
-        TrySetSniTooltip(_mainTray, body);
-    }
-
-    /// <summary>
-    /// Reflect into Avalonia's <c>TrayIcon</c> implementation and set the
-    /// real StatusNotifierItem ToolTip property, then trigger the
-    /// <c>NewToolTip</c> signal so the panel re-fetches it. The framework
-    /// API (<c>ToolTipText</c>) only writes the SNI <c>Title</c> field,
-    /// not this struct, so KDE Plasma never receives a hover tooltip
-    /// without this workaround.
-    ///
-    /// The SNI ToolTip struct is <c>(iconName, iconPixmap, title, body)</c>.
-    /// We put the temps in the <c>title</c> field - Plasma renders the
-    /// title as a bold headline and skips the popup entirely on some
-    /// versions when the title is empty even if the body is populated.
-    /// </summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2070",
-        Justification = "Avalonia.FreeDesktop internals preserved via TrimmerRoots.xml")]
-    [UnconditionalSuppressMessage("Trimming", "IL2075",
-        Justification = "Avalonia.FreeDesktop internals preserved via TrimmerRoots.xml")]
-    private static void TrySetSniTooltip(TrayIcon trayIcon, string body)
-    {
-        try
-        {
-            // TrayIcon._impl (private readonly ITrayIconImpl?)
-            var implField = typeof(TrayIcon).GetField("_impl",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            object? impl = implField?.GetValue(trayIcon);
-            if (impl == null)
-                return;
-
-            // DBusTrayIconImpl._statusNotifierItemDbusObj (private readonly StatusNotifierItemDbusObj?)
-            var sniField = impl.GetType().GetField("_statusNotifierItemDbusObj",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            object? sni = sniField?.GetValue(impl);
-            if (sni == null)
-                return;
-
-            // ToolTip { get; set; } - public auto-property on the
-            // OrgKdeStatusNotifierItemHandler base. Tuple shape:
-            // (string? iconName, (int,int,byte[]?)[]? pixmap, string? title, string? body)
-            var tooltipProp = sni.GetType().GetProperty("ToolTip");
-            if (tooltipProp == null)
-                return;
-
-            (int, int, byte[])[]? pixmap = null;
-            ValueTuple<string, (int, int, byte[])[]?, string, string> value = ("", pixmap, body, "");
-            tooltipProp.SetValue(sni, value);
-
-            // EmitNewToolTip() - protected on the base; KDE re-reads
-            // ToolTip when this signal fires.
-            var emit = sni.GetType().GetMethod("EmitNewToolTip",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            emit?.Invoke(sni, null);
-        }
-        catch (Exception ex)
-        {
-            Logger.WriteLine($"TraySystemMonitor: SNI tooltip injection failed: {ex.Message}");
-        }
     }
 
     // 
@@ -420,6 +348,7 @@ public static class TraySystemMonitor
             // this the temp icons feel inert and users wonder if the app
             // crashed.
             _cpuTray.Clicked += (_, _) => _toggleMainWindow?.Invoke();
+            TrayRegistry.Register(_cpuTray);
             _cpuKeyValid = false; // force first-tick render
             Logger.WriteLine("TraySystemMonitor: CPU temp icon created");
         }
@@ -436,7 +365,7 @@ public static class TraySystemMonitor
         if (_cpuTray == null)
             return;
         try
-        { _cpuTray.IsVisible = false; }
+        { TrayRegistry.Unregister(_cpuTray); }
         catch { }
         _cpuTray = null;
         _cpuKeyValid = false;
@@ -452,6 +381,7 @@ public static class TraySystemMonitor
             _gpuTray = new TrayIcon { IsVisible = true };
             // Same click behavior as the CPU icon - see EnsureCpuTray.
             _gpuTray.Clicked += (_, _) => _toggleMainWindow?.Invoke();
+            TrayRegistry.Register(_gpuTray);
             _gpuKeyValid = false;
             Logger.WriteLine("TraySystemMonitor: GPU temp icon created");
         }
@@ -468,7 +398,7 @@ public static class TraySystemMonitor
         if (_gpuTray == null)
             return;
         try
-        { _gpuTray.IsVisible = false; }
+        { TrayRegistry.Unregister(_gpuTray); }
         catch { }
         _gpuTray = null;
         _gpuKeyValid = false;
@@ -483,6 +413,7 @@ public static class TraySystemMonitor
         {
             _dgpuTray = new TrayIcon { IsVisible = true };
             _dgpuTray.Clicked += (_, _) => _toggleMainWindow?.Invoke();
+            TrayRegistry.Register(_dgpuTray);
             _dgpuKeyValid = false;
             Logger.WriteLine("TraySystemMonitor: dGPU status icon created");
         }
@@ -499,7 +430,7 @@ public static class TraySystemMonitor
         if (_dgpuTray == null)
             return;
         try
-        { _dgpuTray.IsVisible = false; }
+        { TrayRegistry.Unregister(_dgpuTray); }
         catch { }
         _dgpuTray = null;
         _dgpuKeyValid = false;

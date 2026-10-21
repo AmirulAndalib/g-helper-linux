@@ -17,7 +17,7 @@
 
     <!-- Trim aggressively -->
     <TrimMode>full</TrimMode>
-    <!-- HidSharpCore uses reflection but we preserve all its types in TrimmerRoots.xml -->
+    <!-- HidSharpCore uses reflection (IL2104); it has shipped fine under full trimming -->
     <NoWarn>$(NoWarn);IL2104</NoWarn>
     <OptimizationPreference>Size</OptimizationPreference>
 
@@ -72,11 +72,6 @@
     <EmbeddedResource Include="../install/ghelper-gpu-boot.service" LogicalName="ghelper-gpu-boot.service" Condition="Exists('../install/ghelper-gpu-boot.service')" />
     <EmbeddedResource Include="../install/ghelper.desktop" LogicalName="ghelper.desktop" Condition="Exists('../install/ghelper.desktop')" />
     <EmbeddedResource Include="../install/ghelper.png" LogicalName="ghelper.png" Condition="Exists('../install/ghelper.png')" />
-  </ItemGroup>
-
-  <!-- AOT trimmer configuration -->
-  <ItemGroup>
-    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
   </ItemGroup>
 
   <!--
