@@ -6,11 +6,35 @@
 
 ### Fixed
 
-- Tray icons missing since v1.0.95: Avalonia 12.1.4 only shows a tray icon once it is registered with the application (refs #220).
+### Changed
+
+## v1.0.96 (2026-10-21)
+
+### Fixed
+
+- Tray icons missing since v1.0.95. Avalonia 12.1.3+ shows only icons attached to the app (#220, #221, thanks @GuilhermeOliveiraDev).
+
+## v1.0.95 (2026-10-21)
+
+### Added
+
+- Vocoder window: on/off switch and controls for the voice effects that only presets could set (#213).
+- Strix rear light strip follows custom RGB modes, as a gradient from the four keyboard zones (#214).
+- Mice: Gladius II Core, Gladius II Origin COD (#214).
+
+### Fixed
+
+- Reapply timer restarted nvidia-powerd every 30 s. It no longer re-applies GPU tuning, and powerd restarts only after a GPU firmware write (#209).
+- Fans window shows the real reapply default, so 0 turns reapply off (#209).
+- Vocoder follow mode tracks down to 60 Hz (was 94 Hz) without octave jumps, so low voices no longer stay on the fixed carrier (#213).
+- Vocoder robot output matches voice level. Raising Mix no longer makes it quieter (#213).
+- ROG NUC: updates are looked up by DMI model name (#213).
+- TUF: keyboard follows the Shutdown lighting option instead of staying lit (#213).
 
 ### Changed
 
-- CPU, GPU and dGPU tray icons set their hover text through the SNI title. The reflection into Avalonia internals that filled the Plasma tooltip no longer works on Avalonia 12 and was removed, together with `TrimmerRoots.xml`.
+- Avalonia 12.1.4 (#219).
+- Model lists updates (#216).
 
 ## v1.0.94 (2026-10-08)
 
