@@ -10,6 +10,8 @@
 
 ## v1.0.97 (2026-10-22)
 
+<img width="667" height="741" alt="image" src="https://github.com/user-attachments/assets/6ac233d3-1ee0-4cdf-97f1-aeda9437c6ea" />
+
 ### Added
 
 - Extra window tabs: General, Power, GPU, Display, Lighting, Input and Devices. The last used tab is remembered (#225).
