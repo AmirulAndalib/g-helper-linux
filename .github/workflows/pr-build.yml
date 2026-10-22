@@ -44,9 +44,6 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v21
 
-      - name: Nix store cache
-        uses: DeterminateSystems/magic-nix-cache-action@v14
-
       # Full build: catches stale deps.json, SDK fallback-package collisions
       # and fetchNupkg patchelf breakage that a plain dotnet restore misses.
       - name: Build ghelper flake package
