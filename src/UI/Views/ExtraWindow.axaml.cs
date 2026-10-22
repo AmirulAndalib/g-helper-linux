@@ -31,6 +31,7 @@ public partial class ExtraWindow : Window
     public ExtraWindow()
     {
         InitializeComponent();
+        InitTabs();
         Labels.LanguageChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             bool prev = _suppressEvents;
@@ -154,8 +155,24 @@ public partial class ExtraWindow : Window
     {
         Title = Labels.Get("extra_title");
 
+        // Tabs + search
+        labelTabGeneral.Text = Labels.Get("extra_tab_general");
+        labelTabPower.Text = Labels.Get("extra_tab_power");
+        labelTabGpu.Text = Labels.Get("tab_gpu");
+        labelTabDisplay.Text = Labels.Get("display_header");
+        labelTabLighting.Text = Labels.Get("extra_tab_lighting");
+        labelTabInput.Text = Labels.Get("extra_tab_input");
+        labelTabDevices.Text = Labels.Get("extra_tab_devices");
+        textSearch.PlaceholderText = Labels.Get("extra_search_placeholder");
+        labelSearchEmpty.Text = Labels.Get("extra_search_empty");
+        headerStartup.Text = Labels.Get("extra_section_startup");
+        headerBattery.Text = Labels.Get("sysinfo_battery_header");
+        headerSleep.Text = Labels.Get("sleep");
+        headerGpu.Text = Labels.Get("tab_gpu");
+        headerDevices.Text = Labels.Get("extra_tab_devices");
+        headerAudio.Text = Labels.Get("sysinfo_audio_header");
+
         // Language section
-        labelLanguageHeader.Text = Labels.Get("language_header");
         labelLanguageLabel.Text = Labels.Get("language_header");
 
         // Appearance section
@@ -200,7 +217,6 @@ public partial class ExtraWindow : Window
         labelGammaLabel.Text = Labels.Get("gamma");
 
         // Other
-        headerOther.Text = Labels.Get("other_header");
         checkBootSound.Content = Labels.Get("boot_sound");
         checkManualFan.Content = Labels.Get("manual_fan_control");
         labelManualFanHint.Text = Labels.Get("manual_fan_hint");
@@ -319,6 +335,205 @@ public partial class ExtraWindow : Window
         RefreshSystemInfo();
         RefreshPower();
         RefreshGpuBackend();
+
+        for (int i = 0; i < _tabCaptions.Count; i++)
+            _tabCaptions[i].Text = _tabLabels[i].Text;
+        ApplySearch();
+    }
+
+    // TABS + SEARCH
+
+    private StackPanel[] _tabPanels = [];
+    private TextBlock[] _tabLabels = [];
+    private readonly List<TextBlock> _tabCaptions = new();
+    private readonly List<IDisposable> _searchHidden = new();
+
+    private void InitTabs()
+    {
+        _tabPanels = [tabGeneral, tabPower, tabGpu, tabDisplay, tabLighting, tabInput, tabDevices];
+        _tabLabels = [labelTabGeneral, labelTabPower, labelTabGpu, labelTabDisplay, labelTabLighting, labelTabInput, labelTabDevices];
+        foreach (var panel in _tabPanels)
+        {
+            var caption = new TextBlock { Classes = { "tab-caption" } };
+            panel.Children.Insert(0, caption);
+            _tabCaptions.Add(caption);
+        }
+
+        tabStrip.SelectedIndex = Math.Clamp(Helpers.AppConfig.Get("extra_tab", 0), 0, _tabPanels.Length - 1);
+        tabStrip.SelectionChanged += (_, _) =>
+        {
+            Helpers.AppConfig.Set("extra_tab", tabStrip.SelectedIndex);
+            ApplySearch();
+        };
+        // Clicking any tab leaves the search results.
+        tabStrip.AddHandler(PointerReleasedEvent, (_, _) => textSearch.Text = "", handledEventsToo: true);
+        textSearch.TextChanged += (_, _) => ApplySearch();
+        AddHandler(KeyDownEvent, Search_KeyDown, RoutingStrategies.Tunnel);
+        ApplySearch();
+    }
+
+    private void Search_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F && e.KeyModifiers == KeyModifiers.Control)
+        {
+            textSearch.Focus();
+            textSearch.SelectAll();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && !string.IsNullOrEmpty(textSearch.Text))
+        {
+            textSearch.Text = "";
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Tab mode shows the selected tab. Search mode shows every tab as one list
+    /// and hides rows that do not match. Rows are the children after the header
+    /// in each section. Hiding uses animation priority, so it never overwrites
+    /// the hardware checks that set IsVisible locally.
+    /// </summary>
+    private void ApplySearch()
+    {
+        foreach (var hidden in _searchHidden)
+            hidden.Dispose();
+        _searchHidden.Clear();
+
+        var terms = (textSearch.Text ?? "").ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        bool searching = terms.Length > 0;
+        tabStrip.Opacity = searching ? 0.5 : 1;
+
+        var sections = new List<(Border Section, int Tab, List<(Control Row, int Score)> Rows)>();
+        for (int tab = 0; tab < _tabPanels.Length; tab++)
+            foreach (var section in _tabPanels[tab].Children.OfType<Border>())
+            {
+                if (!section.IsVisible || section.Child is not StackPanel body)
+                    continue;
+                string header = _tabLabels[tab].Text + " " + SearchText(body.Children[0], null);
+                var rows = new List<(Control, int)>();
+                foreach (var row in body.Children.Skip(1))
+                {
+                    var hints = new List<string>();
+                    string label = SearchText(row, hints);
+                    if (label.Length == 0 && hints.Count == 0)
+                        continue;
+                    int score = searching ? Score(terms, (header + " " + label).ToLowerInvariant(), string.Join(" ", hints).ToLowerInvariant()) : 1;
+                    rows.Add((row, score));
+                }
+                sections.Add((section, tab, rows));
+            }
+
+        // Exact hits win; fuzzy hits only show when nothing matches exactly.
+        int best = sections.SelectMany(s => s.Rows).Select(r => r.Score).DefaultIfEmpty(0).Max();
+        bool anyShown = false;
+        for (int tab = 0; tab < _tabPanels.Length; tab++)
+        {
+            bool tabShown = false;
+            foreach (var (section, _, rows) in sections.Where(s => s.Tab == tab))
+            {
+                bool sectionShown = false;
+                foreach (var (row, score) in rows)
+                {
+                    if (best > 0 && score == best)
+                        sectionShown = true;
+                    else
+                        Hide(row);
+                }
+                if (sectionShown)
+                    tabShown = true;
+                else
+                    Hide(section);
+            }
+
+            _tabPanels[tab].IsVisible = searching ? tabShown : tab == tabStrip.SelectedIndex;
+            _tabCaptions[tab].IsVisible = searching && tabShown;
+            anyShown |= tabShown;
+        }
+
+        labelSearchEmpty.IsVisible = searching && !anyShown;
+        scrollContent.Offset = default;
+    }
+
+    private void Hide(Control control)
+    {
+        if (control.SetValue(IsVisibleProperty, false, Avalonia.Data.BindingPriority.Animation) is { } undo)
+            _searchHidden.Add(undo);
+    }
+
+    /// <summary>Visible text of a row. Wrapped text goes to hints when given.</summary>
+    private static string SearchText(Control row, List<string>? hints)
+    {
+        var labels = new List<string>();
+        CollectText(row, labels, hints ?? labels);
+        return string.Join(" ", labels);
+    }
+
+    private static void CollectText(Avalonia.LogicalTree.ILogical node, List<string> labels, List<string> hints)
+    {
+        if (node is Control { IsVisible: false } or ComboBox)
+            return;
+        if (node is TextBlock text)
+        {
+            if (!string.IsNullOrEmpty(text.Text))
+                (text.TextWrapping == TextWrapping.Wrap ? hints : labels).Add(text.Text);
+            return;
+        }
+        if (node is ContentControl { Content: string content })
+            labels.Add(content);
+        foreach (var child in node.LogicalChildren)
+            CollectText(child, labels, hints);
+    }
+
+    /// <summary>2 = every term is a substring, 1 = some term only matches fuzzily, 0 = no match.</summary>
+    private static int Score(string[] terms, string label, string hints)
+    {
+        int score = 2;
+        foreach (var term in terms)
+        {
+            if (label.Contains(term) || hints.Contains(term))
+                continue;
+            if (!System.Text.RegularExpressions.Regex.Split(label, @"[^\p{L}\p{N}]+").Any(word => FuzzyWord(term, word)))
+                return 0;
+            score = 1;
+        }
+        return score;
+    }
+
+    /// <summary>"kbd" matches "keyboard" (same first letter, rest in order); "brigthness" matches "brightness" (one typo).</summary>
+    private static bool FuzzyWord(string term, string word)
+    {
+        if (word.Length == 0 || word[0] != term[0])
+            return false;
+        int matched = 0;
+        foreach (char c in word)
+            if (matched < term.Length && c == term[matched])
+                matched++;
+        if (matched == term.Length)
+            return true;
+        if (term.Length < 4)
+            return false;
+        for (int len = term.Length - 1; len <= term.Length + 1; len++)
+            if (len <= word.Length && EditDistance(term, word[..len]) <= 1)
+                return true;
+        return false;
+    }
+
+    /// <summary>Levenshtein distance with adjacent swaps counted as one edit.</summary>
+    private static int EditDistance(string a, string b)
+    {
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (int i = 0; i <= a.Length; i++)
+            d[i, 0] = i;
+        for (int j = 0; j <= b.Length; j++)
+            d[0, j] = j;
+        for (int i = 1; i <= a.Length; i++)
+            for (int j = 1; j <= b.Length; j++)
+            {
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j], d[i, j - 1]) + 1, d[i - 1, j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                    d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+            }
+        return d[a.Length, b.Length];
     }
 
     /// <summary>Rebuild keyboard speed combo with current language strings.</summary>
@@ -388,7 +603,7 @@ public partial class ExtraWindow : Window
             idx++;
         }
         comboKbdSpeed.SelectedIndex = selectedSpeedIdx;
-        comboKbdSpeed.IsVisible = Aura.UsesSpeed();
+        labelAnimSpeed.IsVisible = comboKbdSpeed.IsVisible = Aura.UsesSpeed();
 
         // Keyboard
         checkAwake.IsChecked = Helpers.AppConfig.IsNotFalse("keyboard_awake");
@@ -1226,12 +1441,7 @@ public partial class ExtraWindow : Window
     private void RefreshLenovo()
     {
         if (!Helpers.AppConfig.IsLenovoDevice())
-        {
-            panelLenovo.IsVisible = false;
             return;
-        }
-
-        bool any = false;
 
         // Conservation: proper on/off toggle (the slider mapping stays too)
         bool hasConservation = Platform.Linux.Lenovo.LenovoDetection.HasChargeTypes()
@@ -1242,7 +1452,6 @@ public partial class ExtraWindow : Window
             checkLenovoConservation.Content =
                 $"Battery conservation mode (cap charge at ~{Platform.Linux.Lenovo.LinuxLenovoWmi.ConservationCap}%)";
             checkLenovoConservation.IsChecked = Platform.Linux.Lenovo.LenovoFeatures.IsConservationActive();
-            any = true;
         }
 
         bool hasRapid = Platform.Linux.Lenovo.LenovoDetection.HasRapidCharge();
@@ -1251,7 +1460,6 @@ public partial class ExtraWindow : Window
         if (hasRapid)
         {
             checkLenovoRapidCharge.IsChecked = Platform.Linux.Lenovo.LenovoFeatures.GetRapidCharge();
-            any = true;
         }
 
         bool hasUsb = Platform.Linux.Lenovo.LenovoDetection.HasUsbCharging();
@@ -1259,7 +1467,6 @@ public partial class ExtraWindow : Window
         if (hasUsb)
         {
             checkLenovoUsbCharging.IsChecked = Platform.Linux.Lenovo.LenovoFeatures.GetUsbCharging();
-            any = true;
         }
 
         bool hasFnLock = Platform.Linux.Lenovo.LenovoDetection.HasFnLock();
@@ -1267,7 +1474,6 @@ public partial class ExtraWindow : Window
         if (hasFnLock)
         {
             checkLenovoFnLock.IsChecked = Platform.Linux.Lenovo.LenovoFeatures.GetFnLock();
-            any = true;
         }
 
         var flip = Platform.Linux.Lenovo.LenovoFeatures.GetFlipToStart();
@@ -1275,7 +1481,6 @@ public partial class ExtraWindow : Window
         if (flip != null)
         {
             checkLenovoFlipToStart.IsChecked = flip.Value;
-            any = true;
         }
 
         bool hasExtreme = Platform.Linux.Lenovo.LenovoDetection.HasExtremeProfile();
@@ -1285,7 +1490,6 @@ public partial class ExtraWindow : Window
         {
             checkLenovoExtremeTurbo.IsChecked =
                 Helpers.AppConfig.GetString("platform_profile_1") == "max-power";
-            any = true;
         }
 
         bool hasMicFix = Platform.Linux.Lenovo.LenovoFeatures.IsMicBoostFixAvailable();
@@ -1294,7 +1498,6 @@ public partial class ExtraWindow : Window
         if (hasMicFix)
         {
             checkLenovoMicFix.IsChecked = Helpers.AppConfig.Is("lenovo_mic_boost_fix");
-            any = true;
         }
 
         bool hasDust = Platform.Linux.Lenovo.LenovoFeatures.IsDustCleanSupported();
@@ -1302,10 +1505,8 @@ public partial class ExtraWindow : Window
         if (hasDust)
         {
             labelLenovoDustCleanBtn.Text = Platform.Linux.Lenovo.LenovoFeatures.IsDustCleanRunning ? "Stop" : "Start";
-            any = true;
         }
 
-        panelLenovo.IsVisible = any;
     }
 
     private void CheckLenovoConservation_Changed(object? sender, RoutedEventArgs e)
