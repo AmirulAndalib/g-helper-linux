@@ -47,7 +47,10 @@ rec {
   # The main GUI binary, built from source as a Native AOT single binary.
   ghelper = buildDotnetModule rec {
     pname = "ghelper";
-    version = "1.0.94";
+    # Latest release: first "## vX.Y.Z ..." heading in CHANGELOG.md.
+    version = builtins.head (lib.findFirst (m: m != null) null
+      (map (builtins.match "## v([0-9.]+) .*")
+        (lib.splitString "\n" (builtins.readFile ../CHANGELOG.md))));
 
     src = lib.cleanSource ../.;
 

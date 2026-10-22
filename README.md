@@ -288,19 +288,26 @@ cd src && dotnet list package --outdated
 sudo ./install/install-local.sh
 ```
 
+```bash
+# Before opening a PR (CI runs these too)
+dotnet run -c Debug --project tests/GHelper.Linux.Tests
+bash install/tests/test-ghelper-gpu-boot.sh
+./scripts/i18n-check.sh
+```
+
 <details>
 <summary><code>╠══[ MANUAL BUILD COMMANDS ]══╣</code></summary>
 
 ```bash
-# Development (JIT, fast iteration)
-cd src && dotnet restore && dotnet run
+# Development (no AOT, fast incremental rebuilds)
+./build.sh --fast && ./dist/ghelper
 
 # GHELPER_DEV=1 shows a "Dev Windows" button in the main window to open any app window without the matching hardware
-GHELPER_DEV=1 dotnet run
+GHELPER_DEV=1 ./dist/ghelper
 
 # Production (Native AOT)
-cd src && dotnet publish -c Release
-# → src/bin/Release/net10.0/linux-x64/publish/ghelper
+./build.sh
+# -> dist/ghelper
 ```
 
 </details>
@@ -322,6 +329,7 @@ cd src && dotnet publish -c Release
 ║  0xF7  Modules    /etc/modules-load.d/ghelper.conf             ║
 ║  0xF8  Desktop    /usr/share/applications/ghelper.desktop      ║
 ║  0xF9  Autostart  ~/.config/autostart/ghelper.desktop          ║
+║  0xFA  Icon       /usr/share/icons/hicolor/.../ghelper.png     ║
 ║                                                                 ║
 ╚═════════════════════════════════════════════════════════════════╝
 ```
