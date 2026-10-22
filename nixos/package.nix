@@ -49,7 +49,7 @@ rec {
     pname = "ghelper";
     # Latest release: first "## vX.Y.Z ..." heading in CHANGELOG.md.
     version = builtins.head (lib.findFirst (m: m != null) null
-      (map (builtins.match "## v([0-9.]+) .*")
+      (map (builtins.match "## v([0-9.]+).*")
         (lib.splitString "\n" (builtins.readFile ../CHANGELOG.md))));
 
     src = lib.cleanSource ../.;
