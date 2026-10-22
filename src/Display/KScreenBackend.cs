@@ -200,6 +200,7 @@ public class KScreenBackend : IDisplayBackend
             Helpers.Logger.WriteLine($"KScreen.SetRefreshRate: running kscreen-doctor {cmd}");
 
             SysfsHelper.RunCommand("kscreen-doctor", cmd);
+            _info = null;
 
             Helpers.Logger.WriteLine($"KScreen.SetRefreshRate: success - {cmd} ({hz}Hz)");
         }
@@ -233,11 +234,20 @@ public class KScreenBackend : IDisplayBackend
 
     // Internal helpers
 
+    // Callers query rate and rate list back to back; one spawn (~25 ms) serves both.
+    private static string? _info;
+    private static long _infoTicks;
+
     /// <summary>Run kscreen-doctor -o and strip ANSI codes. Returns null on failure.</summary>
     private static string? FetchInfo()
     {
+        long now = Environment.TickCount64;
+        if (_info != null && now - _infoTicks < 1000)
+            return _info;
         var raw = SysfsHelper.RunCommand("kscreen-doctor", "-o");
-        return raw != null ? Regex.Replace(raw, @"\x1B\[[0-9;]*m", "") : null;
+        _info = raw != null ? Regex.Replace(raw, @"\x1B\[[0-9;]*m", "") : null;
+        _infoTicks = now;
+        return _info;
     }
 
     /// <summary>

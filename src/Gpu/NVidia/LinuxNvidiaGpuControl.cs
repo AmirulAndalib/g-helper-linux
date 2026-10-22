@@ -30,11 +30,11 @@ public class LinuxNvidiaGpuControl : IGpuControl
     public LinuxNvidiaGpuControl()
     {
         _hwmonDir = SysfsHelper.FindHwmonByName("nvidia");
-        _available = CheckAvailability();
+        _gpuName = QueryGpuName();
+        _available = !string.IsNullOrEmpty(_gpuName);
 
         if (_available)
         {
-            _gpuName = QueryGpuName();
             Helpers.Logger.WriteLine($"NVIDIA GPU found: {_gpuName ?? "unknown"}");
         }
         else
@@ -698,13 +698,6 @@ public class LinuxNvidiaGpuControl : IGpuControl
     }
 
     // Private helpers
-
-    private bool CheckAvailability()
-    {
-        // Check if nvidia-smi exists and returns successfully
-        var output = RunNvidiaSmi("--query-gpu=name", "--format=csv,noheader");
-        return output != null && output.Trim().Length > 0;
-    }
 
     private string? QueryGpuName()
     {
