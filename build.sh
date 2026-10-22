@@ -20,9 +20,9 @@ while [[ $# -gt 0 ]]; do
 Usage: $0 [--no-aot|--fast|-f]
 
 Modes:
-  (default)            Full Native AOT build. Single 16MB compressed binary
+  (default)            Full Native AOT build. Single ~50MB binary
                        in dist/ghelper. Takes ~2 min.
-  --no-aot, --fast,-f  Fast iteration build. Skips AOT/trimming/UPX. dist/
+  --no-aot, --fast,-f  Fast iteration build. Skips AOT/trimming. dist/
                        becomes a folder (~80MB) containing ghelper + DLLs.
                        Incremental rebuilds (~5-10s after first run).
 
@@ -44,7 +44,7 @@ echo "=== G-Helper Linux Build ==="
 if (( USE_AOT )); then
     echo "    Mode: Native AOT"
 else
-    echo "    Mode: Fast (no AOT, no trim, no UPX)"
+    echo "    Mode: Fast (no AOT, no trim)"
 fi
 echo ""
 
@@ -246,20 +246,6 @@ else
     cp -r "$PUBLISH_DIR/." "$DIST_DIR/"
 fi
 chmod +x "$DIST_DIR/ghelper"
-
-# UPX compression (AOT mode only — pointless on a folder of DLLs).
-if (( USE_AOT )); then
-    if command -v upx &>/dev/null; then
-        echo "[5/5] Compressing with UPX..."
-        upx --best --lzma "$DIST_DIR/ghelper" 2>&1 | tail -1 || true
-    else
-        echo ""
-        echo "NOTE: upx not found — binary will not be compressed."
-        echo "  Install with: sudo apt install upx-ucl"
-    fi
-else
-    echo "[5/5] Skipping UPX (fast mode)"
-fi
 
 # Clean wlr-randr build artifacts from vendor dir (binary is embedded in ghelper)
 if [[ -n "$WLR_RANDR_BIN" ]]; then

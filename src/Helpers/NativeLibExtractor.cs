@@ -9,7 +9,7 @@ namespace GHelper.Linux.Helpers;
 /// ~/.cache/ghelper/libs/ and preloads the libraries before SkiaSharp/
 /// Avalonia initialises.
 ///
-/// Always re-extracts on launch so a new build's payload reaches disk
+/// Rewrites cached files only when their bytes differ from the payload,
 /// without any version stamping. Any leftover helper process from a
 /// previous run is reaped first to avoid the Linux "Text file busy"
 /// race on overwriting a running executable.
@@ -153,7 +153,7 @@ public static class NativeLibExtractor
 
     /// <summary>
     /// Find an embedded tool binary (e.g. wlr-randr, ghelper-audio).
-    /// Always re-extracts when the resource exists; falls back to the
+    /// Extracts (when changed) if the resource exists; falls back to the
     /// cached copy or the system PATH otherwise.
     /// </summary>
     public static string? FindTool(string toolName)
@@ -210,7 +210,8 @@ public static class NativeLibExtractor
     }
 
     /// <summary>
-    /// Unconditionally extract an embedded resource to the cache directory.
+    /// Extract an embedded resource to the cache directory unless the cached
+    /// copy is already identical.
     /// Logs and returns null on failure; on ETXTBSY (cached binary still
     /// executing) returns the existing stale path so the caller can fall
     /// back to spawning what is already on disk.
@@ -232,6 +233,16 @@ public static class NativeLibExtractor
 
             Directory.CreateDirectory(CacheDir);
             long expectedLength = stream.Length;
+
+            // Rewrite (and chmod below) when the cached copy lost its exec bit.
+#pragma warning disable CA1416
+            if (SameContent(targetPath, stream)
+                && File.GetUnixFileMode(targetPath).HasFlag(UnixFileMode.UserExecute))
+            {
+                Logger.WriteLine($"NativeLibExtractor: {resourceName} up to date at {Short(targetPath)}");
+                return targetPath;
+            }
+#pragma warning restore CA1416
 
             try
             {
@@ -274,42 +285,66 @@ public static class NativeLibExtractor
         }
     }
 
+    /// <summary>True when the file at <paramref name="path"/> already holds
+    /// the stream's bytes. Rewinds the stream either way.</summary>
+    private static bool SameContent(string path, Stream stream)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            if (fs.Length != stream.Length)
+                return false;
+            var a = new byte[1 << 16];
+            var b = new byte[1 << 16];
+            int n;
+            while ((n = stream.Read(a, 0, a.Length)) > 0)
+            {
+                fs.ReadExactly(b, 0, n);
+                if (!a.AsSpan(0, n).SequenceEqual(b.AsSpan(0, n)))
+                    return false;
+            }
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            stream.Position = 0;
+        }
+    }
+
     /// <summary>
     /// Reap leftover helper processes by exact name so a still-running
     /// child from a previous G-Helper run does not block File.Create from
     /// overwriting its executable in the cache (Linux ETXTBSY rule).
+    /// Same as <c>pkill -x</c>, minus the ~25 ms pkill spawn.
     /// </summary>
     private static void KillStaleHelpers()
     {
-        foreach (var name in EagerTools)
+        try
         {
-            try
+            foreach (var dir in Directory.EnumerateDirectories("/proc"))
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "pkill",
-                    Arguments = $"-x {name}",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-                using var proc = Process.Start(psi);
-                if (proc != null)
-                {
-                    proc.WaitForExit(2000);
-                    if (proc.ExitCode == 0)
-                        Logger.WriteLine($"NativeLibExtractor: reaped leftover {name} process(es)");
-                    else
-                        Logger.WriteLine($"NativeLibExtractor: no leftover {name} processes to reap");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.WriteLine($"NativeLibExtractor: could not reap {name}: {ex.Message}");
+                if (!int.TryParse(Path.GetFileName(dir), out int pid))
+                    continue;
+                string comm;
+                try
+                { comm = File.ReadAllText(Path.Combine(dir, "comm")).TrimEnd('\n'); }
+                catch { continue; }
+                if (Array.IndexOf(EagerTools, comm) >= 0 && kill(pid, 15) == 0)
+                    Logger.WriteLine($"NativeLibExtractor: reaped leftover {comm} process (pid {pid})");
             }
         }
+        catch (Exception ex)
+        {
+            Logger.WriteLine($"NativeLibExtractor: could not reap helpers: {ex.Message}");
+        }
     }
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int kill(int pid, int sig);
 
     /// <summary>
     /// Human-readable byte size used in log messages so operators can

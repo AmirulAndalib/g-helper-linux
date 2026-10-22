@@ -219,8 +219,16 @@ public class App : Application
             if (!gameMode)
                 OfferSteamShortcutOnce();
 
-            // Apply saved performance mode on startup
-            Mode?.SetPerformanceMode();
+            // Apply saved performance mode on startup. Off the UI thread: the
+            // sysfs/WMI writes can take hundreds of ms before the first frame.
+            Task.Run(() =>
+            {
+                try
+                { Mode?.SetPerformanceMode(); }
+                catch (Exception ex) { Logger.WriteLine("Startup SetPerformanceMode failed", ex); }
+                UpdateTrayIcon();
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => MainWindowInstance?.RefreshPerformanceMode());
+            });
 
             // Re-apply saved battery charge limit on startup
             Battery.BatteryControl.AutoBattery(init: true);

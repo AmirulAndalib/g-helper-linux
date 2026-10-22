@@ -43,7 +43,8 @@ public class LinuxSystemIntegration : ISystemIntegration
 
     public string GetKernelVersion()
     {
-        return SysfsHelper.RunCommand("uname", "-r") ?? "Unknown";
+        return SysfsHelper.ReadAttribute("/proc/sys/kernel/osrelease")
+            ?? SysfsHelper.RunCommand("uname", "-r") ?? "Unknown";
     }
 
     public Version GetKernelVersionParsed()

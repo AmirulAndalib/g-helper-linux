@@ -91,10 +91,19 @@ public class ModeControl
         catch { }
     }
 
+    private readonly object _setLock = new();
+
     /// <summary>
     /// Set performance mode and apply all associated settings.
     /// </summary>
     public void SetPerformanceMode(int mode = -1, bool notify = false)
+    {
+        // Serialized: startup applies the saved mode off the UI thread.
+        lock (_setLock)
+            SetPerformanceModeLocked(mode, notify);
+    }
+
+    private void SetPerformanceModeLocked(int mode, bool notify)
     {
         int oldMode = Modes.GetCurrent();
         if (mode < 0)

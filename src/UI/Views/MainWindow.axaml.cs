@@ -100,6 +100,16 @@ public partial class MainWindow : Window
             App.MainWindowInstance = null;
         };
 
+        // ASUS mice: show a button per connected mouse, update on hot-plug,
+        // refresh battery readings whenever the window regains focus.
+        Peripherals.PeripheralsProvider.DeviceChanged += () =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(VisualizePeripherals);
+        Activated += (_, _) => Task.Run(() =>
+        {
+            Peripherals.PeripheralsProvider.RefreshBatteryForAllDevices();
+            Avalonia.Threading.Dispatcher.UIThread.Post(VisualizePeripherals);
+        });
+
         // Start sensor refresh + populate UI on every show. Opened fires on the
         // first show AND on Show() after a Hide(), unlike Loaded which fires
         // only once per Window lifetime. Pairing Opened with the Closing-Hide
@@ -132,28 +142,14 @@ public partial class MainWindow : Window
 
     private void RefreshAll()
     {
+        // Also refreshes mode, GPU, screen, battery, keyboard and footer.
         ApplyLabels();
-        RefreshPerformanceMode();
-        RefreshGpuMode();
-        RefreshScreen();
-        RefreshBattery();
-        RefreshKeyboard();
         RefreshFnLockButton();
         RefreshAudioToggle();
         RefreshAnimeMatrix();
         RefreshSensorData();
-        RefreshFooter();
         RefreshAllyPanel();
 
-        // ASUS mice: show a button per connected mouse, update on hot-plug,
-        // refresh battery readings whenever the window regains focus.
-        Peripherals.PeripheralsProvider.DeviceChanged += () =>
-            Avalonia.Threading.Dispatcher.UIThread.Post(VisualizePeripherals);
-        Activated += (_, _) => Task.Run(() =>
-        {
-            Peripherals.PeripheralsProvider.RefreshBatteryForAllDevices();
-            Avalonia.Threading.Dispatcher.UIThread.Post(VisualizePeripherals);
-        });
         VisualizePeripherals();
 
         // OSK header button: touch-first devices in desktop sessions only.
