@@ -87,9 +87,12 @@ Pull requests and feature requests are welcome!
 │  Display                   Brightness, gamma, multi-backend     │
 │  Undervolting              AMD Curve Optimizer, Intel MSR       │
 │  CPU boost + EPP           Turbo boost, energy preference       │
-│  Audio DSP                 EQ, noise suppression, reverb        │
+│  Audio DSP                 EQ, noise, reverb, vocoder           │
 │  Anime Matrix / Slash      LED matrix display control           │
 │  ROG Ally                  Controller mode, handheld config     │
+│  On-screen keyboard        Toggle with ghelper --osk            │
+│  XG Mobile dock            Dock lights + dock GPU fan curve     │
+│  Steam integration         Add to Steam, gamescope game mode    │
 │  FnLock remapping          Custom Fn key bindings               │
 │  NumberPad                 Trackpad numpad emulation             │
 │  Mouse / peripherals       DPI, polling, Logitech HID++         │
@@ -140,7 +143,7 @@ When a reboot is required, G-Helper shows a notification and the pending mode ap
 
 Switching to Eco while the dGPU driver is active shows a dialog with three options:
 
-- **Switch Now** — attempts to unload the dGPU driver (requires admin password)
+- **Switch Now** — closes the apps using the dGPU and unloads its driver (unsaved work in them is lost)
 - **After Reboot** — saves the mode for next boot (dGPU driver is blocked from loading via modprobe rules)
 - **Cancel** — keeps the current mode
 
@@ -198,7 +201,8 @@ Curve Optimizer undervolting for AMD Ryzen CPUs via the [ryzen_smu](https://gith
 ```
 ╔══[ MINIMUM SPEC ]══════════════════════════════════════════════╗
 ║                                                                 ║
-║  OS       Ubuntu 22.04+ / Debian 12+ / Fedora 38+ / Arch      ║
+║  OS       Ubuntu 24.04+ / Debian 13+ / Fedora 39+ / Arch      ║
+║  libc     glibc 2.38+ (release binary and AppImage)            ║
 ║  Desktop  X11 or Wayland (X11 recommended for full xrandr)     ║
 ║  Kernel   6.2+ recommended, 6.9+ for all features              ║
 ║  Module   asus-nb-wmi (loaded by default on ASUS laptops)      ║
@@ -233,7 +237,11 @@ lsmod | grep asus
 curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash
 ```
 
-### `╠══[ QUICK UNINSTALL ]══╣`
+On NixOS the same command stages a module in `/etc/nixos` and runs `nixos-rebuild switch`.
+
+The binary and the AppImage also check their system files on every start and offer to install or repair them with one password prompt (state in the Updates window).
+
+### `╠══[ UNINSTALL ]══╣`
 
 ```bash
 curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash -s -- --uninstall
@@ -261,13 +269,13 @@ chmod +x GHelper-x86_64.AppImage
 
 ```bash
 # Ubuntu/Debian
-sudo apt install dotnet-sdk-10.0 clang zlib1g-dev libpipewire-0.3-dev pkg-config
+sudo apt install dotnet-sdk-10.0 clang zlib1g-dev libpipewire-0.3-dev libwayland-dev pkg-config
 
 # Fedora
-sudo dnf install dotnet-sdk-10.0 clang zlib-devel pipewire-devel pkg-config
+sudo dnf install dotnet-sdk-10.0 clang zlib-devel pipewire-devel wayland-devel pkg-config
 
 # Arch
-sudo pacman -S dotnet-sdk clang libpipewire pkg-config
+sudo pacman -S dotnet-sdk clang libpipewire wayland pkg-config
 ```
 
 ```bash
@@ -306,9 +314,14 @@ cd src && dotnet publish -c Release
 ║                                                                 ║
 ║  0xF0  Binary     /opt/ghelper/ghelper                         ║
 ║  0xF1  Symlink    /usr/local/bin/ghelper                       ║
-║  0xF2  udev       /etc/udev/rules.d/90-ghelper.rules          ║
-║  0xF3  Desktop    /usr/share/applications/ghelper.desktop      ║
-║  0xF4  Autostart  ~/.config/autostart/ghelper.desktop          ║
+║  0xF2  Helpers    /opt/ghelper/gpu-helper, ryzenadj (AMD)      ║
+║  0xF3  Scripts    /usr/local/lib/ghelper/*.sh                  ║
+║  0xF4  Service    /etc/systemd/system/ghelper-gpu-boot.service ║
+║  0xF5  sudoers    /etc/sudoers.d/zz-ghelper-gpu                ║
+║  0xF6  udev       /etc/udev/rules.d/90-ghelper.rules           ║
+║  0xF7  Modules    /etc/modules-load.d/ghelper.conf             ║
+║  0xF8  Desktop    /usr/share/applications/ghelper.desktop      ║
+║  0xF9  Autostart  ~/.config/autostart/ghelper.desktop          ║
 ║                                                                 ║
 ╚═════════════════════════════════════════════════════════════════╝
 ```
@@ -358,6 +371,9 @@ g-helper-linux/
     install-local.sh                      # Install from local build (devs)
     90-ghelper.rules                      # udev rules
     ghelper.desktop                       # Desktop entry
+    gpu-block-helper.sh                   # dGPU block for Eco (modprobe/udev)
+    ghelper-gpu-boot.sh / .service        # Pending GPU mode at boot
+  nixos/                                  # Flake, package and NixOS module
   vendor/
     gpu-helper/                           # Native C helper (setuid root)
       gpu-helper.c                        #   Main entry + CLI dispatch
@@ -387,6 +403,8 @@ g-helper-linux/
     Program.cs                            # Entry point
     App.axaml / App.axaml.cs              # Avalonia app + tray icon + lifecycle
     GHelper.Linux.csproj                  # Project file (.NET 10.0, AOT)
+    Cli/
+      ResourceExtractorCli.cs             # --extract-helper, --apply-system-files
     Helpers/
       AppConfig.cs                        # Configuration (JSON, AOT-safe)
       Logger.cs                           # Console logger
@@ -453,6 +471,7 @@ g-helper-linux/
       Aura.cs                             # Aura RGB lighting
       CustomRgb.cs                        # Per-key RGB
       LenovoRgb.cs                        # Lenovo keyboard RGB
+      XGM.cs                              # XG Mobile dock lights + fan
     Platform/
       IHardwareControl.cs                 # Hardware abstraction interfaces
       Linux/
@@ -475,6 +494,7 @@ g-helper-linux/
         Cosmic.cs                         # COSMIC DE integration
         NixOS.cs                          # NixOS-specific paths
         ImmutableOs.cs                    # Fedora Atomic / SteamOS quirks
+        SteamShortcuts.cs                 # Steam library shortcut, game mode
     UI/
       Styles/
         GHelperTheme.axaml                # Dark theme
@@ -501,6 +521,7 @@ g-helper-linux/
         FnLockWindow.axaml / .cs          # FnLock key config
         MouseWindow.axaml / .cs           # Mouse/peripheral settings
         NvidiaProcessesWindow.axaml / .cs # dGPU process viewer
+        OnScreenKeyboardWindow.axaml / .cs # On-screen keyboard
         UpdatesWindow.axaml / .cs         # Self-updater
         SystemInfoWindow.axaml / .cs      # System info viewer
       Assets/

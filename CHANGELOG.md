@@ -8,6 +8,20 @@
 
 ### Changed
 
+## v1.0.97 (2026-10-22)
+
+<img width="667" height="741" alt="image" src="https://github.com/user-attachments/assets/6ac233d3-1ee0-4cdf-97f1-aeda9437c6ea" />
+
+### Added
+
+- Extra window tabs: General, Power, GPU, Display, Lighting, Input and Devices. The last used tab is remembered (#225).
+- Search in the Extra window (Ctrl+F). It lists matches from every tab (#225).
+
+### Changed
+
+- Windows open sooner: the saved performance mode is applied off the UI thread, display info and NVIDIA detection cost one call each, and native helpers are rewritten only when they changed (#224).
+- Build no longer uses UPX. The binary is ~50 MB uncompressed instead of 16 MB, but it uses less ram (#224).
+
 ## v1.0.96 (2026-10-21)
 
 ### Fixed
