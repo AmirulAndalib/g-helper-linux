@@ -90,9 +90,6 @@ jobs:
       - name: Install Native AOT dependencies
         run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev libwayland-dev libpipewire-0.3-dev pkg-config
 
-      - name: Restore packages
-        run: dotnet restore src/ --runtime linux-x64
-
       - name: Build
         run: ./build.sh
 
@@ -143,22 +140,6 @@ jobs:
         with:
           name: ghelper
           path: dist/ghelper
-          retention-days: 7
-
-      - name: Upload udev rules artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: udev-rules
-          path: install/90-ghelper.rules
-          retention-days: 7
-
-      - name: Upload GPU boot files artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: gpu-boot-files
-          path: |
-            install/ghelper-gpu-boot.sh
-            install/ghelper-gpu-boot.service
           retention-days: 7
 
       - name: Save PR metadata
