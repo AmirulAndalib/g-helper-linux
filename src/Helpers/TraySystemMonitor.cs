@@ -63,6 +63,9 @@ public static class TraySystemMonitor
     // freshness without doubling the sysfs read load when both are active.
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(3);
 
+    // Plasma sorts tray icons by title: shared prefix keeps ours adjacent, "Linux" puts main last (#227).
+    private const string TitlePrefix = "G-Helper ";
+
     // Render cache
     // Per-icon "last rendered key" - we skip the SKBitmap encode when the
     // tuple matches the previous tick. PNG encoding is cheap but
@@ -269,7 +272,7 @@ public static class TraySystemMonitor
             // a confirmation that this is the CPU (not GPU). Reuses the
             // same i18n key ("tray_tooltip_cpu" = "CPU: {0}") that the main
             // icon uses, so we get free localization across all 29 langs.
-            _cpuTray.ToolTipText =
+            _cpuTray.ToolTipText = TitlePrefix +
                 Labels.Format("tray_tooltip_cpu", cpuTemp > 0 ? TempHelper.FormatTemp(cpuTemp) : "--");
         }
 
@@ -278,7 +281,7 @@ public static class TraySystemMonitor
         {
             UpdateGpuIcon(gpuTemp);
             // Mirror of CPU tooltip - see above.
-            _gpuTray.ToolTipText =
+            _gpuTray.ToolTipText = TitlePrefix +
                 Labels.Format("tray_tooltip_gpu", gpuTemp > 0 ? TempHelper.FormatTemp(gpuTemp) : "--");
         }
 
@@ -288,7 +291,7 @@ public static class TraySystemMonitor
         {
             string? status = Gpu.GPUModeControl.DgpuRuntimeStatus();
             UpdateDgpuIcon(status);
-            _dgpuTray.ToolTipText = "dGPU: " + (status ?? "off");
+            _dgpuTray.ToolTipText = TitlePrefix + "dGPU: " + (status ?? "off");
         }
     }
 
@@ -324,7 +327,7 @@ public static class TraySystemMonitor
         if (_mainTray == null)
             return;
 
-        _mainTray.ToolTipText = body;
+        _mainTray.ToolTipText = TitlePrefix + "Linux\n" + body;
     }
 
     // 
