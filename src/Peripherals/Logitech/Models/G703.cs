@@ -13,9 +13,6 @@ public class G703Lightspeed : LogitechMouse
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 50;
 
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
-
     public override LightingZone[] SupportedLightingZones() => [LightingZone.Logo];
 
     public override LightingMode[] SupportedLightingModes() =>
@@ -32,9 +29,6 @@ public class G703 : LogitechMouse
     public override uint MaxDPI() => 25600;
     public override uint MinDPI() => 100;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
     public override LightingZone[] SupportedLightingZones() => [LightingZone.Logo];
 

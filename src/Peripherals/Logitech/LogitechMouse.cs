@@ -91,6 +91,7 @@ public class LogitechMouse : IMousePeripheral
     public List<(ushort Id, string Name, bool Enabled, int EnableIndex)> Gestures { get; } = new();
     public List<(ushort Id, string Name, bool Diverted, int DivertIndex)> GestureDiverts { get; } = new();
     public List<(int Index, string Name, int Value, int Max)> GestureParams { get; } = new();
+    private readonly Dictionary<int, int> _gestureParamSizes = new();
 
     // Keyboard features
     public bool FnInversion { get; set; }
@@ -135,8 +136,12 @@ public class LogitechMouse : IMousePeripheral
     protected int _maxDpi = 16000;
     protected int _minDpi = 200;
     protected int _dpiStep = 50;
-    protected int[] _supportedPollingRates = [];
+    protected PollingRate[] _supportedPollingRates = [];
     protected int _rgbZoneCount;
+    protected ushort _rgbFeature;
+    protected ushort[][] _rgbZoneEffects = [];
+    protected (byte control, byte events)? _rgbPriorControl;
+    protected bool _lightingWritten;
     protected bool _hasBattery;
     protected bool _hasDpi;
     protected bool _hasPollingRate;
@@ -237,18 +242,20 @@ public class LogitechMouse : IMousePeripheral
     public virtual bool HasAudioMix() => _hasAudioMix;
     public virtual bool HasHeadsetEq() => _hasHeadsetEq;
     public virtual bool HasAdvancedEq() => _hasAdvancedEq;
-    public virtual bool HasAutoSleep() => _hasAutoSleep;
-    public virtual bool HasPowerMgmt() => _hasPowerMgmt;
+    public virtual bool HasAutoSleep() => _hasAutoSleep || _hasPowerMgmt;
+    public virtual bool HasPowerMgmt() => false;
     public virtual bool HasOnboardEffect() => _hasOnboardEffect;
     public virtual bool HasPerZoneLighting() => _hasPerZoneLighting;
-    public virtual bool HasSensitivitySwitch() => _hasReprogControls;
-    public virtual bool HasIdleEffect() => _hasRgb;
-    public virtual bool HasIdleTimeout() => _hasRgb;
-    public virtual bool HasSleepTimeout() => _wireless || _hasBattery;
+    // No HID++ feature backs these; the old writes hit unrelated functions (0x1B04 reset, 0x8071 power mode).
+    // Hand detection / side scroll are HID++ 1.0 register 0x01 bits, unreachable on 2.0 devices.
+    public virtual bool HasSensitivitySwitch() => false;
+    public virtual bool HasIdleEffect() => false;
+    public virtual bool HasIdleTimeout() => false;
+    public virtual bool HasSleepTimeout() => false;
     public virtual bool HasHapticWaveform() => _hasHaptic;
     public virtual bool HasBacklightDelay() => _hasBacklight;
-    public virtual bool HasHandDetection() => _hasReprogControls;
-    public virtual bool HasSideScrolling() => _hasReprogControls;
+    public virtual bool HasHandDetection() => false;
+    public virtual bool HasSideScrolling() => false;
     public virtual bool HasLowresMode() => _hasLowResWheel;
     public virtual bool HasKeyboardFeatures() =>
         _hasFnInversion || _hasOsPlatform || _hasGKey || _hasMKey || _hasMrKey || _hasDisableKeys
@@ -268,12 +275,21 @@ public class LogitechMouse : IMousePeripheral
     public List<(byte Index, int Actuation, int RapidTrigger, int Haptics)> AnalogButtons { get; } = new();
 
     public virtual PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
+        _supportedPollingRates.Length > 0
+            ? _supportedPollingRates
+            : [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
-    public virtual LightingMode[] SupportedLightingModes() =>
-        _hasRgb
-            ? [LightingMode.Off, LightingMode.Static, LightingMode.Breathing, LightingMode.ColorCycle]
-            : [LightingMode.Off];
+    public virtual LightingMode[] SupportedLightingModes()
+    {
+        if (!_hasRgb)
+            return [LightingMode.Off];
+        LightingMode[] all = [LightingMode.Off, LightingMode.Static, LightingMode.Breathing, LightingMode.ColorCycle, LightingMode.Rainbow];
+        // Modes zone 0 reports; the fixed list when its effects are unreadable.
+        LightingMode[] offered = _rgbZoneEffects.Length > 0
+            ? all.Where(m => LightingModeToHidppEffects(m).Any(id => Array.IndexOf(_rgbZoneEffects[0], id) >= 0)).ToArray()
+            : [];
+        return offered.Length > 0 ? offered : all[..4];
+    }
 
     public virtual LightingZone[] SupportedLightingZones() =>
         _rgbZoneCount > 0 || _hasBrightnessControl ? [LightingZone.Logo] : [];
@@ -349,6 +365,13 @@ public class LogitechMouse : IMousePeripheral
     /// <summary>Disposes the HidPPDevice and clears ready state.</summary>
     public virtual void Disconnect()
     {
+        if (_device is not null && !_device.IsDead && _rgbPriorControl is { } prior)
+        {
+            try
+            { HidPPProtocol.ReleaseRGBControl(_device, prior.control, prior.events); }
+            catch { }
+        }
+        _rgbPriorControl = null;
         _device?.Dispose();
         _device = null;
         IsDeviceReady = false;
@@ -446,18 +469,19 @@ public class LogitechMouse : IMousePeripheral
             return;
         }
 
-        if (_device.GetFeatureIndex(Feature.ADJUSTABLE_DPI) >= 0)
+        if (_device.GetFeatureIndex(Feature.ADJUSTABLE_DPI) >= 0
+            || _device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_DPI) >= 0)
         {
             _hasDpi = true;
             try
             {
-                var dpiInfo = HidPPProtocol.GetDPI(_device);
-                if (dpiInfo is not null)
+                var range = HidPPProtocol.GetDPIRange(_device);
+                if (range is not null)
                 {
-                    if (dpiInfo.Value.max > 0)
-                        _maxDpi = dpiInfo.Value.max;
-                    if (dpiInfo.Value.step > 0)
-                        _dpiStep = dpiInfo.Value.step;
+                    _minDpi = range.Value.min;
+                    _maxDpi = range.Value.max;
+                    if (range.Value.step > 0)
+                        _dpiStep = range.Value.step;
                 }
             }
             catch (Exception ex)
@@ -465,35 +489,24 @@ public class LogitechMouse : IMousePeripheral
                 Logger.WriteLine($"LogitechMouse({GetDisplayName()}): DPI discovery failed: {ex.Message}");
             }
         }
-        else if (_device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_DPI) >= 0)
-        {
-            _hasDpi = true;
-            try
-            {
-                var dpiInfo = HidPPProtocol.GetExtendedDPI(_device);
-                if (dpiInfo is not null)
-                {
-                    if (dpiInfo.Value.max > 0)
-                        _maxDpi = dpiInfo.Value.max;
-                    if (dpiInfo.Value.step > 0)
-                        _dpiStep = dpiInfo.Value.step;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.WriteLine($"LogitechMouse({GetDisplayName()}): extended DPI discovery failed: {ex.Message}");
-            }
-        }
 
         _hasPollingRate = _device.GetFeatureIndex(Feature.REPORT_RATE) >= 0
                        || _device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_REPORT_RATE) >= 0;
 
-        if (_device.GetFeatureIndex(Feature.RGB_EFFECTS) >= 0)
+        // 0x8070 first: a volatile effect there needs no software-control claim.
+        _rgbFeature = _device.GetFeatureIndex(Feature.COLOR_LED_EFFECTS) >= 0 ? Feature.COLOR_LED_EFFECTS
+                    : _device.GetFeatureIndex(Feature.RGB_EFFECTS) >= 0 ? Feature.RGB_EFFECTS
+                    : (ushort)0;
+        if (_rgbFeature != 0)
         {
             _hasRgb = true;
+            _rgbPriorControl = null;
             try
             {
-                _rgbZoneCount = HidPPProtocol.GetRGBZoneCount(_device);
+                _rgbZoneCount = HidPPProtocol.GetRGBZoneCount(_device, _rgbFeature);
+                _rgbZoneEffects = new ushort[_rgbZoneCount][];
+                for (int zone = 0; zone < _rgbZoneCount; zone++)
+                    _rgbZoneEffects[zone] = HidPPProtocol.GetRGBZoneEffectIds(_device, _rgbFeature, (byte)zone);
             }
             catch (Exception ex)
             {
@@ -567,7 +580,9 @@ public class LogitechMouse : IMousePeripheral
                      || _device.GetFeatureIndex(Feature.HEADSET_ONBOARD_EQ) >= 0;
         _hasAdvancedEq = _device.GetFeatureIndex(Feature.HEADSET_ADVANCED_PARA_EQ) >= 0;
         _hasAutoSleep = _device.GetFeatureIndex(Feature.CENTURION_AUTO_SLEEP) >= 0;
-        _hasPowerMgmt = _device.GetFeatureIndex(Feature.ADC_MEASUREMENT) >= 0;
+        // ADC power-off minutes exist from feature version 2.
+        _hasPowerMgmt = _device.GetFeatureIndex(Feature.ADC_MEASUREMENT) >= 0
+                     && _device.GetFeatureVersion(Feature.ADC_MEASUREMENT) >= 2;
         _hasOnboardEffect = _device.GetFeatureIndex(Feature.HEADSET_RGB_ONBOARD_EFFECTS) >= 0;
         _hasPerZoneLighting = _device.GetFeatureIndex(Feature.HEADSET_RGB_HOSTMODE) >= 0;
     }
@@ -595,7 +610,7 @@ public class LogitechMouse : IMousePeripheral
             _maxDpi = 1500;
             _minDpi = 100;
             _dpiStep = 100;
-            int raw = dpi[3];
+            int raw = dpi[2];
             if (raw >= 0x81 && raw <= 0x8F)
                 DpiSettings[0].DPI = (uint)((raw - 0x80) * 100);
         }
@@ -605,20 +620,20 @@ public class LogitechMouse : IMousePeripheral
         if (fn is not null && fn.Length >= 5)
         {
             _hasFnInversion = true;
-            FnInversion = (fn[4] & 0x01) != 0;
+            FnInversion = (fn[3] & 0x01) != 0;
         }
 
         // MOUSE_BUTTON_FLAGS register 0x01 holds smooth-scroll (0x40) and side-scroll (0x02) bits
         var flags = _device.ReadRegister(0x01);
         if (flags is not null && flags.Length >= 5)
         {
-            byte b = flags[5];
+            byte b = flags[2];
             _hasHiResScroll = true;
             HiResScrollEnabled = (b & 0x40) != 0;
-            SideScrolling = (b & 0x02) == 0;
+            SideScrolling = (b & 0x02) != 0;
         }
 
-        // KEYBOARD_HAND_DETECTION also lives in 0x01 byte [2] mask 0x30 (inverted)
+        // KEYBOARD_HAND_DETECTION also lives in 0x01 p2 mask 0x30 (inverted)
         if (flags is not null && flags.Length >= 5)
         {
             HandDetection = (flags[4] & 0x30) == 0;
@@ -704,6 +719,7 @@ public class LogitechMouse : IMousePeripheral
             foreach (var ls in LightingSettings)
                 zones.Add(Convert.ToHexString(ls.Export()));
             d["lighting"] = zones;
+            d["lighting_set"] = _lightingWritten;
         }
 
         AppConfig.SetObject(PersistKey, d);
@@ -744,7 +760,8 @@ public class LogitechMouse : IMousePeripheral
 
             // Polling rate
             if (d.TryGetValue("polling_rate", out var prObj) && prObj is System.Text.Json.JsonElement prEl
-                && prEl.TryGetInt32(out int pr) && _hasPollingRate)
+                && prEl.TryGetInt32(out int pr) && _hasPollingRate
+                && SupportedPollingrates().Contains((PollingRate)pr))
             {
                 PollingRate = (PollingRate)pr;
                 try
@@ -813,8 +830,10 @@ public class LogitechMouse : IMousePeripheral
                 catch { }
             }
 
-            // Lighting
-            if ((_hasRgb || _hasBacklight) && d.TryGetValue("lighting", out var ltObj)
+            // Lighting. RGB restores only what the user set: older configs saved untouched defaults,
+            // and a restore now takes RGB control from the firmware.
+            bool lightingSet = TryGetBool(d, "lighting_set", out bool ls) && ls;
+            if ((_hasRgb ? lightingSet : _hasBacklight) && d.TryGetValue("lighting", out var ltObj)
                 && ltObj is System.Text.Json.JsonElement ltEl
                 && ltEl.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
@@ -887,6 +906,7 @@ public class LogitechMouse : IMousePeripheral
             ReadHaptic();
             ReadForceSensing();
             ReadAnalogButtons();
+            ReadExtraSettings();
 
             IsDeviceReady = true;
             Logger.WriteLine($"LogitechMouse({GetDisplayName()}): synchronised OK");
@@ -908,7 +928,9 @@ public class LogitechMouse : IMousePeripheral
                 var bat = HidPPProtocol.GetBattery(_device);
                 if (bat is not null)
                 {
-                    Battery = bat.Value.level;
+                    // -1 = no reading while charging; keep the last level.
+                    if (bat.Value.level >= 0)
+                        Battery = bat.Value.level;
                     Charging = bat.Value.charging;
                     return;
                 }
@@ -929,12 +951,13 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null)
             return;
 
-        // BATTERY_CHARGE (0x0D): returns [charge%, ?, statusByte, ...]
+        // Register replies are [subId, register, p0, p1, p2].
+        // BATTERY_CHARGE (0x0D): p0 = charge%, p2 high nibble = status (0x50 recharging, 0x90 full).
         var reply = _device.ReadRegister(0x0D);
         if (reply is not null && reply.Length >= 5)
         {
-            int charge = reply[3];
-            byte status = (byte)(reply[5] & 0xF0);
+            int charge = reply[2];
+            byte status = (byte)(reply[4] & 0xF0);
             if (charge > 0 || status != 0)
             {
                 Battery = charge;
@@ -944,13 +967,13 @@ public class LogitechMouse : IMousePeripheral
             }
         }
 
-        // BATTERY_STATUS (0x07): returns [statusByte, chargingByte, ...]
+        // BATTERY_STATUS (0x07): p0 = level code, p1 = charging byte.
         reply = _device.ReadRegister(0x07);
         if (reply is null || reply.Length < 5)
             return;
 
-        byte sb = reply[3];
-        byte cb = reply[4];
+        byte sb = reply[2];
+        byte cb = reply[3];
         int level = sb switch { 7 => 100, 5 => 70, 3 => 30, 1 => 10, _ => 0 };
         bool charging = (cb & 0x21) == 0x21 || (cb & 0x22) == 0x22;
         if (level > 0 || charging)
@@ -968,8 +991,8 @@ public class LogitechMouse : IMousePeripheral
         try
         {
             var dpi = HidPPProtocol.GetDPI(_device);
-            if (dpi is not null && dpi.Value.current > 0 && DpiSettings.Length > 0)
-                DpiSettings[DpiProfile].DPI = (uint)dpi.Value.current;
+            if (dpi is > 0 && DpiSettings.Length > 0)
+                DpiSettings[DpiProfile].DPI = (uint)dpi.Value;
         }
         catch (Exception ex)
         {
@@ -983,10 +1006,18 @@ public class LogitechMouse : IMousePeripheral
             return;
         try
         {
+            // 0x8061 first: devices with both report the real rate there.
+            var ext = HidPPProtocol.GetExtendedPollingRate(_device);
+            if (ext is not null)
+            {
+                _supportedPollingRates = ext.Value.supportedIndices.Select(ExtendedIndexToPollingRate).ToArray();
+                PollingRate = ExtendedIndexToPollingRate(ext.Value.currentIndex);
+                return;
+            }
             var rate = HidPPProtocol.GetPollingRate(_device);
             if (rate is not null)
             {
-                _supportedPollingRates = rate.Value.supportedMs;
+                _supportedPollingRates = rate.Value.supportedMs.Where(ms => ms is 1 or 2 or 4 or 8).Select(MsToPollingRate).ToArray();
                 PollingRate = MsToPollingRate(rate.Value.currentMs);
             }
         }
@@ -1001,19 +1032,26 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null)
             return;
 
-        if (_hasRgb && _rgbZoneCount > 0)
+        // RGB_EFFECTS (0x8071) has no getter for the active effect; 0x8070 has one on some devices.
+        if (_rgbFeature == Feature.COLOR_LED_EFFECTS)
         {
             try
             {
-                for (int zone = 0; zone < _rgbZoneCount && zone < LightingSettings.Length; zone++)
+                for (int zone = 0; zone < LightingSettings.Length && zone < _rgbZoneEffects.Length; zone++)
                 {
-                    var effect = HidPPProtocol.GetRGBZoneEffect(_device, (byte)zone);
-                    if (effect is not null)
+                    var cur = HidPPProtocol.GetRGBZoneEffect(_device, (byte)zone);
+                    if (cur is null || cur.Value.index >= _rgbZoneEffects[zone].Length)
+                        continue;
+                    ushort id = _rgbZoneEffects[zone][cur.Value.index];
+                    if (HidppEffectToLightingMode(id) is not { } mode)
+                        continue;
+                    var ls = LightingSettings[zone];
+                    ls.Mode = mode;
+                    if (id is 0x01 or 0x02 or 0x0A)
                     {
-                        LightingSettings[zone].R = effect.Value.r;
-                        LightingSettings[zone].G = effect.Value.g;
-                        LightingSettings[zone].B = effect.Value.b;
-                        LightingSettings[zone].Mode = HidppEffectToLightingMode(effect.Value.effect);
+                        ls.R = cur.Value.effectParams[0];
+                        ls.G = cur.Value.effectParams[1];
+                        ls.B = cur.Value.effectParams[2];
                     }
                 }
             }
@@ -1126,8 +1164,10 @@ public class LogitechMouse : IMousePeripheral
             return;
         try
         {
-            int ms = PollingRateToMs(PollingRate);
-            HidPPProtocol.SetPollingRate(_device, ms);
+            if (_device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_REPORT_RATE) >= 0)
+                HidPPProtocol.SetExtendedPollingRate(_device, PollingRateToExtendedIndex(PollingRate));
+            else
+                HidPPProtocol.SetPollingRate(_device, PollingRateToMs(PollingRate));
         }
         catch (Exception ex)
         {
@@ -1140,15 +1180,17 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null)
             return;
 
-        if (_hasRgb && _rgbZoneCount > 0)
+        _lightingWritten = true;
+        if (_hasRgb && _rgbZoneCount > 0 && LightingSettings.Length > 0)
         {
             try
             {
-                for (int zone = 0; zone < _rgbZoneCount && zone < LightingSettings.Length; zone++)
+                // Zones past the UI list take its last entry.
+                for (int zone = 0; zone < _rgbZoneCount; zone++)
                 {
-                    var ls = LightingSettings[zone];
-                    byte effect = LightingModeToHidppEffect(ls.Mode);
-                    HidPPProtocol.SetRGBZoneEffect(_device, (byte)zone, effect, ls.R, ls.G, ls.B, (byte)ls.Speed);
+                    var ls = LightingSettings[Math.Min(zone, LightingSettings.Length - 1)];
+                    if (!WriteRgbZone((byte)zone, ls.Mode, ls.R, ls.G, ls.B, (int)ls.Speed * 1000))
+                        Logger.WriteLine($"LogitechMouse({GetDisplayName()}): zone {zone} lighting {ls.Mode} not applied");
                 }
             }
             catch (Exception ex)
@@ -1275,14 +1317,12 @@ public class LogitechMouse : IMousePeripheral
         var cur = _device.ReadRegister(0x01);
         if (cur is null || cur.Length < 5)
             return;
-        byte cur0 = cur[3];
-        byte cur1 = cur[4];
-        byte cur2 = cur[5];
+        byte cur0 = cur[2];
         if (value)
-            cur2 |= mask;
+            cur0 |= mask;
         else
-            cur2 &= (byte)~mask;
-        _device.WriteRegister(0x01, cur0, cur1, cur2);
+            cur0 &= (byte)~mask;
+        _device.WriteRegister(0x01, cur0, cur[3], cur[4]);
     }
 
     public virtual void WriteThumbWheel()
@@ -1500,8 +1540,12 @@ public class LogitechMouse : IMousePeripheral
         {
             var list = HidPPProtocol.GetGestureParams(_device);
             GestureParams.Clear();
+            _gestureParamSizes.Clear();
             foreach (var p in list)
+            {
                 GestureParams.Add((p.index, p.name, p.currentValue, p.maxValue));
+                _gestureParamSizes[p.index] = p.size;
+            }
         }
         catch (Exception ex)
         {
@@ -1515,7 +1559,8 @@ public class LogitechMouse : IMousePeripheral
             return;
         try
         {
-            HidPPProtocol.SetGestureParam(_device, paramIndex, value);
+            if (_gestureParamSizes.TryGetValue(paramIndex, out int size))
+                HidPPProtocol.SetGestureParam(_device, paramIndex, value, size);
         }
         catch (Exception ex)
         {
@@ -1594,6 +1639,51 @@ public class LogitechMouse : IMousePeripheral
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): AnalogButton write failed - {ex.Message}"); }
     }
 
+    /// <summary>Reads keyboard (Fn inversion, OS, backlight, disabled keys) and headset (sidetone, power-off) settings.</summary>
+    protected virtual void ReadExtraSettings()
+    {
+        if (_device is null || _device.ProtocolVersion < 2.0f)
+            return;
+        try
+        {
+            if (_hasFnInversion && HidPPProtocol.GetFnInversion(_device) is bool fn)
+                FnInversion = fn;
+
+            if (_hasOsPlatform)
+            {
+                var os = HidPPProtocol.GetOsPlatform(_device);
+                if (os is null)
+                    _hasOsPlatform = false;
+                else
+                {
+                    OsPlatformCount = os.Value.count;
+                    if (os.Value.platform < os.Value.count)
+                        OsPlatform = os.Value.platform;
+                }
+            }
+
+            if (_hasBacklight && HidPPProtocol.GetBacklightDelays(_device) is { } bl)
+            {
+                BacklightDelayHandsOut = bl.handsOut;
+                BacklightDelayHandsIn = bl.handsIn;
+                BacklightDelayPowered = bl.powered;
+            }
+
+            // getDisabledKeys fn 0x10 payload[0].
+            if (_hasDisableKeys && _device.FeatureRequest(Feature.KEYBOARD_DISABLE_KEYS, 0x10) is { Length: >= 3 } dk)
+                DisabledKeysSummary = HidPPDecode.DisabledKeysSummary(dk[2]);
+
+            if (_hasSidetone && _device.GetFeatureIndex(Feature.HEADSET_AUDIO_SIDETONE) < 0
+                && _device.FeatureRequest(Feature.SIDETONE, 0x00) is { Length: >= 3 } st)
+                HeadsetSidetone = Math.Min((int)st[2], 100);
+
+            if (_hasPowerMgmt && _device.GetFeatureIndex(Feature.CENTURION_AUTO_SLEEP) < 0
+                && _device.FeatureRequest(Feature.ADC_MEASUREMENT, 0x10) is { Length: >= 3 } adc)
+                HeadsetAutoSleepMinutes = adc[2];
+        }
+        catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): settings read failed - {ex.Message}"); }
+    }
+
     public virtual void WriteLiftOffDistance() { }
     public virtual void WriteDebounce() { }
     public virtual void WriteAcceleration() { }
@@ -1610,10 +1700,7 @@ public class LogitechMouse : IMousePeripheral
         try
         {
             for (int zone = 0; zone < _rgbZoneCount; zone++)
-            {
-                HidPPProtocol.SetRGBZoneEffect(_device, (byte)zone, 0x01,
-                    color.R, color.G, color.B);
-            }
+                WriteRgbZone((byte)zone, LightingMode.Static, color.R, color.G, color.B, 0);
         }
         catch
         {
@@ -1636,10 +1723,7 @@ public class LogitechMouse : IMousePeripheral
                 _device.WriteRegister(0x09, 0x00, (byte)(FnInversion ? 0x01 : 0x00));
                 return;
             }
-            ushort feat = _device.GetFeatureIndex(Feature.K375S_FN_INVERSION) >= 0 ? Feature.K375S_FN_INVERSION
-                        : _device.GetFeatureIndex(Feature.NEW_FN_INVERSION) >= 0 ? Feature.NEW_FN_INVERSION
-                        : Feature.FN_INVERSION;
-            _device.FeatureRequest(feat, 0x10, (byte)(FnInversion ? 0x01 : 0x00));
+            HidPPProtocol.SetFnInversion(_device, FnInversion);
         }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): FnInversion write failed - {ex.Message}"); }
     }
@@ -1650,8 +1734,7 @@ public class LogitechMouse : IMousePeripheral
             return;
         try
         {
-            ushort feat = _device.GetFeatureIndex(Feature.MULTIPLATFORM) >= 0 ? Feature.MULTIPLATFORM : Feature.DUALPLATFORM;
-            _device.FeatureRequest(feat, 0x30, (byte)OsPlatform);
+            HidPPProtocol.SetOsPlatform(_device, OsPlatform);
         }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): OsPlatform write failed - {ex.Message}"); }
     }
@@ -1679,7 +1762,7 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null || !_hasMrKey)
             return;
         try
-        { _device.FeatureRequest(Feature.MR, 0x10, (byte)(MrKeyLed ? 0x01 : 0x00)); }
+        { _device.FeatureRequest(Feature.MR, 0x00, (byte)(MrKeyLed ? 0x01 : 0x00)); }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): MrKey write failed - {ex.Message}"); }
     }
 
@@ -1689,8 +1772,21 @@ public class LogitechMouse : IMousePeripheral
             return;
         try
         {
-            ushort feat = _device.GetFeatureIndex(Feature.HEADSET_AUDIO_SIDETONE) >= 0 ? Feature.HEADSET_AUDIO_SIDETONE : Feature.SIDETONE;
-            _device.FeatureRequest(feat, 0x10, (byte)HeadsetSidetone);
+            int pct = Math.Clamp(HeadsetSidetone, 0, 100);
+            if (_device.GetFeatureIndex(Feature.HEADSET_AUDIO_SIDETONE) < 0)
+            {
+                _device.FeatureRequest(Feature.SIDETONE, 0x10, (byte)pct);
+                return;
+            }
+            // 0x0604 v1: [mic, level]; v2+: [mic, 0xFF, level] with level 0..N-1, N from fn 0x20 payload[2].
+            if (_device.GetFeatureVersion(Feature.HEADSET_AUDIO_SIDETONE) <= 1)
+            {
+                _device.FeatureRequest(Feature.HEADSET_AUDIO_SIDETONE, 0x10, 0x01, (byte)pct);
+                return;
+            }
+            byte[]? steps = _device.FeatureRequest(Feature.HEADSET_AUDIO_SIDETONE, 0x20);
+            int n = steps is not null && steps.Length >= 5 && steps[4] > 1 ? steps[4] : 101;
+            _device.FeatureRequest(Feature.HEADSET_AUDIO_SIDETONE, 0x10, 0x01, 0xFF, (byte)HidPPDecode.PercentToRange(pct, 0, n - 1));
         }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): Sidetone write failed - {ex.Message}"); }
     }
@@ -1700,7 +1796,14 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null || !_hasMicGain)
             return;
         try
-        { _device.FeatureRequest(Feature.HEADSET_MIC_GAIN, 0x10, (byte)HeadsetMicGain); }
+        {
+            // fn 0x00 payload [min, max] as int8; write fn 0x20 [gain] in that range.
+            byte[]? info = _device.FeatureRequest(Feature.HEADSET_MIC_GAIN, 0x00);
+            int min = -128, max = 127;
+            if (info is not null && info.Length >= 4 && (sbyte)info[3] > (sbyte)info[2])
+            { min = (sbyte)info[2]; max = (sbyte)info[3]; }
+            _device.FeatureRequest(Feature.HEADSET_MIC_GAIN, 0x20, (byte)(sbyte)HidPPDecode.PercentToRange(HeadsetMicGain, min, max));
+        }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): MicGain write failed - {ex.Message}"); }
     }
 
@@ -1709,7 +1812,7 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null || !_hasMicMute)
             return;
         try
-        { _device.FeatureRequest(Feature.HEADSET_MIC_MUTE, 0x10, (byte)(HeadsetMicMute ? 0x01 : 0x00)); }
+        { _device.FeatureRequest(Feature.HEADSET_MIC_MUTE, 0x20, (byte)(HeadsetMicMute ? 0x01 : 0x00)); }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): MicMute write failed - {ex.Message}"); }
     }
 
@@ -1727,7 +1830,12 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null || !_hasAiNoise)
             return;
         try
-        { _device.FeatureRequest(Feature.HEADSET_AI_NOISE_REDUCTION, 0x10, (byte)(HeadsetAiNoise ? 0x01 : 0x00), (byte)HeadsetAiNoiseLevel); }
+        {
+            // Enable via fn 0x10; level 0-3 via fn 0x30.
+            _device.FeatureRequest(Feature.HEADSET_AI_NOISE_REDUCTION, 0x10, (byte)(HeadsetAiNoise ? 0x01 : 0x00));
+            if (HeadsetAiNoise)
+                _device.FeatureRequest(Feature.HEADSET_AI_NOISE_REDUCTION, 0x30, (byte)HidPPDecode.PercentToRange(HeadsetAiNoiseLevel, 0, 3));
+        }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): AiNoise write failed - {ex.Message}"); }
     }
 
@@ -1754,7 +1862,7 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null || !_hasAudioMix)
             return;
         try
-        { _device.FeatureRequest(Feature.HEADSET_MIX, 0x10, (byte)HeadsetAudioMix); }
+        { _device.FeatureRequest(Feature.HEADSET_MIX, 0x10, (byte)HidPPDecode.PercentToRange(HeadsetAudioMix, 0, 255)); }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): AudioMix write failed - {ex.Message}"); }
     }
 
@@ -1783,21 +1891,32 @@ public class LogitechMouse : IMousePeripheral
 
     public virtual void WriteHeadsetAutoSleep()
     {
-        if (_device is null || !_hasAutoSleep)
+        if (_device is null || !(_hasAutoSleep || _hasPowerMgmt))
             return;
         try
-        { _device.FeatureRequest(Feature.CENTURION_AUTO_SLEEP, 0x10, (byte)HeadsetAutoSleepMinutes); }
+        {
+            byte minutes = (byte)Math.Clamp(HeadsetAutoSleepMinutes, 0, 255);
+            if (_device.GetFeatureIndex(Feature.CENTURION_AUTO_SLEEP) < 0)
+            {
+                // ADC_MEASUREMENT (0x1F20) v2+: fn 0x20 [power-off minutes, 0 = never].
+                _device.FeatureRequest(Feature.ADC_MEASUREMENT, 0x20, minutes);
+                return;
+            }
+            // 0x0108 timer slots: v<3 [t], v3 [reserved, t], v4+ [t, b, c]; the others go back as read.
+            int version = _device.GetFeatureVersion(Feature.CENTURION_AUTO_SLEEP);
+            int count = version >= 4 ? 3 : version >= 3 ? 2 : 1;
+            byte[]? cur = _device.FeatureRequest(Feature.CENTURION_AUTO_SLEEP, 0x00);
+            var args = new byte[count];
+            if (cur is not null && cur.Length >= 2 + count)
+                Array.Copy(cur, 2, args, 0, count);
+            args[count == 2 ? 1 : 0] = minutes;
+            _device.FeatureRequest(Feature.CENTURION_AUTO_SLEEP, 0x10, args);
+        }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): AutoSleep write failed - {ex.Message}"); }
     }
 
-    public virtual void WriteHeadsetPowerMgmt()
-    {
-        if (_device is null || !_hasPowerMgmt)
-            return;
-        try
-        { _device.FeatureRequest(Feature.ADC_MEASUREMENT, 0x10, (byte)(HeadsetPowerMgmt ? 0x01 : 0x00)); }
-        catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): PowerMgmt write failed - {ex.Message}"); }
-    }
+    // ADC power-off minutes go through the auto sleep slider (WriteHeadsetAutoSleep).
+    public virtual void WriteHeadsetPowerMgmt() { }
 
     public virtual void WriteHeadsetOnboardEffect()
     {
@@ -1808,54 +1927,23 @@ public class LogitechMouse : IMousePeripheral
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): OnboardEffect write failed - {ex.Message}"); }
     }
 
-    public virtual void WriteSensitivitySwitch()
-    {
-        if (_device is null || !_hasReprogControls)
-            return;
-        try
-        {
-            ushort feat = _device.GetFeatureIndex(Feature.REPROG_CONTROLS_V4) >= 0 ? Feature.REPROG_CONTROLS_V4 : Feature.REPROG_CONTROLS_V2;
-            _device.FeatureRequest(feat, 0x50, (byte)(SensitivitySwitch ? 0x01 : 0x00));
-        }
-        catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): SensitivitySwitch write failed - {ex.Message}"); }
-    }
+    public virtual void WriteSensitivitySwitch() { }
 
-    public virtual void WriteIdleEffect()
-    {
-        if (_device is null || !_hasRgb)
-            return;
-        try
-        { _device.FeatureRequest(Feature.RGB_EFFECTS, 0x70, 0x00, (byte)IdleEffectIndex); }
-        catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): IdleEffect write failed - {ex.Message}"); }
-    }
+    public virtual void WriteIdleEffect() { }
 
-    public virtual void WriteIdleTimeout()
-    {
-        if (_device is null || !_hasRgb)
-            return;
-        try
-        { _device.FeatureRequest(Feature.RGB_EFFECTS, 0x80, (byte)((IdleTimeoutSeconds >> 8) & 0xFF), (byte)(IdleTimeoutSeconds & 0xFF)); }
-        catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): IdleTimeout write failed - {ex.Message}"); }
-    }
+    public virtual void WriteIdleTimeout() { }
 
-    public virtual void WriteSleepTimeout()
-    {
-        if (_device is null)
-            return;
-        try
-        {
-            ushort feat = _device.GetFeatureIndex(Feature.UNIFIED_BATTERY) >= 0 ? Feature.UNIFIED_BATTERY : Feature.BATTERY_STATUS;
-            _device.FeatureRequest(feat, 0x30, (byte)((SleepTimeoutSeconds >> 8) & 0xFF), (byte)(SleepTimeoutSeconds & 0xFF));
-        }
-        catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): SleepTimeout write failed - {ex.Message}"); }
-    }
+    public virtual void WriteSleepTimeout() { }
 
     public virtual void PlayHapticWaveform()
     {
         if (_device is null || !_hasHaptic)
             return;
         try
-        { _device.FeatureRequest(Feature.HAPTIC, 0x20, (byte)HapticWaveformIndex); }
+        {
+            if (!HidPPProtocol.PlayHapticWaveform(_device, (byte)HapticWaveformIndex))
+                Logger.WriteLine($"LogitechMouse({GetDisplayName()}): haptic waveform {HapticWaveformIndex} not played (unsupported or busy)");
+        }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): HapticWaveform play failed - {ex.Message}"); }
     }
 
@@ -1864,17 +1952,7 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null || !_hasBacklight)
             return;
         try
-        {
-            // BACKLIGHT2 SetConfig: fn 0x10 with delay triplet (powered, hands-in, hands-out) in big-endian seconds.
-            byte[] payload =
-            [
-                0x01,
-                (byte)((BacklightDelayPowered >> 8) & 0xFF), (byte)(BacklightDelayPowered & 0xFF),
-                (byte)((BacklightDelayHandsIn >> 8) & 0xFF), (byte)(BacklightDelayHandsIn & 0xFF),
-                (byte)((BacklightDelayHandsOut >> 8) & 0xFF), (byte)(BacklightDelayHandsOut & 0xFF),
-            ];
-            _device.FeatureRequest(Feature.BACKLIGHT2, 0x10, payload);
-        }
+        { HidPPProtocol.SetBacklightDelays(_device, BacklightDelayHandsOut, BacklightDelayHandsIn, BacklightDelayPowered); }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): BacklightDelays write failed - {ex.Message}"); }
     }
 
@@ -1884,16 +1962,16 @@ public class LogitechMouse : IMousePeripheral
             return;
         try
         {
-            // Bit 0x30 in byte [1] of register 0x01 disables hand-detection. value=true clears the bit.
+            // Bits 0x30 in p2 of register 0x01 disable hand-detection. value=true clears them.
             var cur = _device.ReadRegister(0x01);
             if (cur is null || cur.Length < 5)
                 return;
-            byte b0 = cur[3], b1 = cur[4], b2 = cur[5];
+            byte p2 = cur[4];
             if (HandDetection)
-                b1 &= 0xCF;
+                p2 &= 0xCF;
             else
-                b1 |= 0x30;
-            _device.WriteRegister(0x01, b0, b1, b2);
+                p2 |= 0x30;
+            _device.WriteRegister(0x01, cur[2], cur[3], p2);
         }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): HandDetection write failed - {ex.Message}"); }
     }
@@ -1923,7 +2001,7 @@ public class LogitechMouse : IMousePeripheral
         if (_device is null || !_hasPerZoneLighting)
             return;
         try
-        { _device.FeatureRequest(Feature.HEADSET_RGB_HOSTMODE, 0x10, (byte)(HeadsetPerZoneLighting ? 0x01 : 0x00)); }
+        { _device.FeatureRequest(Feature.HEADSET_RGB_HOSTMODE, 0x80, (byte)(HeadsetPerZoneLighting ? 0x01 : 0x00)); }
         catch (Exception ex) { Logger.WriteLine($"LogitechMouse({GetDisplayName()}): PerZoneLighting write failed - {ex.Message}"); }
     }
 
@@ -1990,25 +2068,52 @@ public class LogitechMouse : IMousePeripheral
         _ => 1,
     };
 
-    /// <summary>Maps HID++ RGB effect ID to the shared LightingMode enum.</summary>
-    protected static LightingMode HidppEffectToLightingMode(byte effect) => effect switch
+    /// <summary>Maps an HID++ RGB effect ID to the shared LightingMode enum, or null if not modelled.</summary>
+    protected static LightingMode? HidppEffectToLightingMode(ushort effect) => effect switch
     {
         0x00 => LightingMode.Off,
         0x01 => LightingMode.Static,
-        0x02 => LightingMode.Breathing,
-        0x03 => LightingMode.ColorCycle,
-        0x04 => LightingMode.Rainbow,
-        _ => LightingMode.Static,
+        0x02 or 0x0A => LightingMode.Breathing,
+        0x03 or 0x15 => LightingMode.ColorCycle,
+        0x04 or 0x16 => LightingMode.Rainbow,
+        _ => null,
     };
 
-    /// <summary>Maps the shared LightingMode enum to an HID++ RGB effect ID.</summary>
-    protected static byte LightingModeToHidppEffect(LightingMode mode) => mode switch
+    /// <summary>Maps the shared LightingMode enum to HID++ RGB effect IDs, in order of preference.</summary>
+    protected static ushort[] LightingModeToHidppEffects(LightingMode mode) => mode switch
     {
-        LightingMode.Off => 0x00,
-        LightingMode.Static => 0x01,
-        LightingMode.Breathing => 0x02,
-        LightingMode.ColorCycle => 0x03,
-        LightingMode.Rainbow => 0x04,
-        _ => 0x01,
+        LightingMode.Off => [0x00, 0x01],
+        LightingMode.Breathing => [0x0A, 0x02],
+        LightingMode.ColorCycle => [0x03, 0x15],
+        LightingMode.Rainbow => [0x16, 0x04],
+        _ => [0x01],
     };
+
+    /// <summary>
+    /// Applies a mode to one zone using the effect index the zone reports for it. On 0x8071
+    /// software control is taken on first use. Off falls back to static black.
+    /// </summary>
+    private bool WriteRgbZone(byte zone, LightingMode mode, byte r, byte g, byte b, int periodMs)
+    {
+        if (_device is null || zone >= _rgbZoneEffects.Length)
+            return false;
+        if (mode == LightingMode.Off)
+            r = g = b = 0;
+
+        foreach (ushort id in LightingModeToHidppEffects(mode))
+        {
+            int index = Array.IndexOf(_rgbZoneEffects[zone], id);
+            byte[]? effectParams = index >= 0 ? HidPPDecode.BuildRgbEffectParams(id, r, g, b, periodMs) : null;
+            if (effectParams is null)
+                continue;
+            if (_rgbFeature == Feature.RGB_EFFECTS)
+            {
+                _rgbPriorControl ??= HidPPProtocol.ClaimRGBControl(_device);
+                if (_rgbPriorControl is null)
+                    return false;
+            }
+            return HidPPProtocol.SetRGBZoneEffect(_device, _rgbFeature, zone, (byte)index, effectParams);
+        }
+        return false;
+    }
 }

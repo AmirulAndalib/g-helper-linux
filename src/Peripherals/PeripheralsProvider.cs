@@ -242,6 +242,7 @@ public static class PeripheralsProvider
         DetectMouse(new MXMaster3BT());
         DetectMouse(new MXMaster3S());
         DetectMouse(new MXMaster3SBT());
+        DetectMouse(new MXMaster4BT());
         DetectMouse(new MXAnywhere3BT());
         DetectMouse(new MXAnywhere3S());
         DetectMouse(new MXAnywhere3SBT());
