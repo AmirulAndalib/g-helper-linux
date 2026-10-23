@@ -13,9 +13,6 @@ public class G502X : LogitechMouse
     public override uint MinDPI() => 100;
     public override uint DPIIncrement() => 50;
 
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
-
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
 }
@@ -30,9 +27,6 @@ public class G502XPlus : LogitechMouse
     public override uint MaxDPI() => 25600;
     public override uint MinDPI() => 100;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
     public override LightingZone[] SupportedLightingZones() =>
         [LightingZone.Logo, LightingZone.Scrollwheel, LightingZone.Underglow];
@@ -51,9 +45,6 @@ public class G502XLightspeed : LogitechMouse
     public override uint MaxDPI() => 25600;
     public override uint MinDPI() => 100;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];

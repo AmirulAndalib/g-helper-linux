@@ -15,9 +15,6 @@ public class G9 : LogitechMouse
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 200;
 
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
-
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
 }
@@ -32,9 +29,6 @@ public class G9x : LogitechMouse
     public override uint MaxDPI() => 5700;
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 200;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
@@ -51,9 +45,6 @@ public class G500 : LogitechMouse
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 200;
 
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
-
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
 }
@@ -68,9 +59,6 @@ public class G500s : LogitechMouse
     public override uint MaxDPI() => 8200;
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
@@ -87,9 +75,6 @@ public class G700 : LogitechMouse
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 200;
 
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
-
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
 }
@@ -104,9 +89,6 @@ public class G700s : LogitechMouse
     public override uint MaxDPI() => 8200;
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];

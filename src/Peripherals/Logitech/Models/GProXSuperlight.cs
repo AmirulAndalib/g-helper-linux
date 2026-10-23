@@ -12,9 +12,6 @@ public class GProXSuperlight : LogitechMouse
     public override uint MaxDPI() => 25600;
     public override uint MinDPI() => 100;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 }
 
 /// <summary>G PRO X SUPERLIGHT 2 (USB wired mode, PID 0xC09B).</summary>
@@ -27,8 +24,4 @@ public class GProXSuperlight2 : LogitechMouse
     public override uint MaxDPI() => 32000;
     public override uint MinDPI() => 100;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz,
-         PollingRate.PR1000Hz, PollingRate.PR2000Hz, PollingRate.PR4000Hz];
 }

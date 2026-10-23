@@ -40,35 +40,17 @@ public static class HidPPProtocol
         if (reply is null || reply.Length < 5)
             return null;
 
-        // reply[2] = stateOfCharge (0-100)
-        // reply[3] = batteryLevel bitfield (8=full, 4=good, 2=low, 1=critical)
-        // reply[4] = chargingStatus: 0=discharging, 1=charging, 2=chargingNearlyFull,
-        // 3=full, 4=chargingSlow, 5=invalidBattery, 6=thermalError, 7=chargingError
-        int soc = reply[2];
-        byte chargingStatus = reply[4];
-        bool charging = chargingStatus is 1 or 2 or 3 or 4;
+        // GetCapabilities fn0 payload[1] bit 1 = state-of-charge gauge; assume present if unreadable.
+        byte[]? caps = device.FeatureRequest(Feature.UNIFIED_BATTERY, 0x00);
+        bool hasSoc = caps is null || caps.Length < 4 || (caps[3] & 0x02) != 0;
 
-        // If SoC is zero, estimate from batteryLevel bits.
-        if (soc == 0)
-        {
-            byte levelBits = reply[3];
-            soc = levelBits switch
-            {
-                8 => 90,
-                4 => 50,
-                2 => 20,
-                1 => 5,
-                _ => 0,
-            };
-        }
-
-        return (soc, charging);
+        return HidPPDecode.DecodeUnifiedBattery(reply[2], reply[3], reply[4], hasSoc);
     }
 
     /// <summary>
     /// Reads BATTERY_STATUS (0x1000) feature.
     /// Function 0x00 = GetStatus: [0]=level%, [1]=nextLevel%, [2]=status.
-    /// Status: 0=discharging, 1/2/3=recharging, 4=charge complete.
+    /// Status: 0=discharging, 1=recharging, 2=almost full, 3=complete, 4=slow recharge.
     /// </summary>
     private static (int level, bool charging)? GetBatteryStatus(HidPPDevice device)
     {
@@ -79,14 +61,7 @@ public static class HidPPProtocol
         if (reply is null || reply.Length < 5)
             return null;
 
-        int level = reply[2];
-        byte status = reply[4];
-        bool charging = status is >= 1 and <= 3;
-
-        if (level == 0)
-            return null;
-
-        return (level, charging);
+        return HidPPDecode.DecodeBatteryStatus(reply[2], reply[4]);
     }
 
     /// <summary>
@@ -104,11 +79,8 @@ public static class HidPPProtocol
             return null;
 
         int voltage = (reply[2] << 8) | reply[3];
-        byte flags = reply[4];
-        bool charging = (flags & 0x80) != 0;
-
         int level = EstimateBatteryPercentage(voltage);
-        return (level, charging);
+        return (level, HidPPDecode.DecodeVoltageCharging(reply[4]));
     }
 
     /// <summary>
@@ -239,108 +211,92 @@ public static class HidPPProtocol
     }
 
     /// <summary>
-    /// Reads the current DPI via ADJUSTABLE_DPI (0x2201) feature.
-    /// Function 0x10 = GetSensorDPI(sensor):
-    ///   Response: [sensor, currentDPI_hi, currentDPI_lo, defaultDPI_hi, defaultDPI_lo, maxOrStep_hi, maxOrStep_lo]
-    ///   If maxOrStep > 0xE000, it is the DPI step (value &amp; 0x1FFF).
-    ///   Otherwise it is the maximum DPI.
+    /// Reads the supported DPI range. ADJUSTABLE_DPI (0x2201) fn 0x10 getSensorDpiList(sensor),
+    /// or EXTENDED_ADJUSTABLE_DPI (0x2202) fn 0x20 getSensorDpiRanges(sensor, X, page), paged.
     /// </summary>
-    /// <returns>(currentDPI, maxDPI, step) where step=0 means the max field is the absolute max.</returns>
-    public static (int current, int max, int step)? GetDPI(HidPPDevice device, byte sensor = 0)
+    public static (int min, int max, int step)? GetDPIRange(HidPPDevice device, byte sensor = 0)
     {
-        if (device.GetFeatureIndex(Feature.ADJUSTABLE_DPI) < 0)
-            return null;
-
-        byte[]? reply = device.FeatureRequest(Feature.ADJUSTABLE_DPI, 0x10, sensor);
-        if (reply is null || reply.Length < 9)
-            return null;
-
-        int currentDpi = (reply[3] << 8) | reply[4];
-        int defaultDpi = (reply[5] << 8) | reply[6];
-        int maxOrStep = (reply[7] << 8) | reply[8];
-
-        int maxDpi, step;
-        // Values > 0xE000 encode the DPI step (low 13 bits).
-        // In step mode the "default" field is the default DPI, not max.
-        if (maxOrStep > 0xE000)
+        if (device.GetFeatureIndex(Feature.ADJUSTABLE_DPI) >= 0)
         {
-            step = maxOrStep & 0x1FFF;
-            maxDpi = 32000; // safe upper bound; real max unknown in step mode
-        }
-        else
-        {
-            step = 0;
-            maxDpi = maxOrStep;
+            byte[]? reply = device.FeatureRequest(Feature.ADJUSTABLE_DPI, 0x10, sensor);
+            if (reply is null || reply.Length < 5 || reply[2] != sensor)
+                return null;
+            return HidPPDecode.ParseDpiWords(reply.AsSpan(3));
         }
 
-        return (currentDpi, maxDpi, step);
+        if (device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_DPI) < 0)
+            return null;
+
+        var words = new List<byte>();
+        for (byte page = 0; page < 16; page++)
+        {
+            byte[]? reply = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_DPI, 0x20, sensor, 0x00, page);
+            if (reply is null || reply.Length < 7 || reply[2] != sensor || reply[3] != 0 || reply[4] != page)
+                return null;
+            words.AddRange(reply.AsSpan(5).ToArray());
+            for (int i = 0; i + 1 < words.Count; i += 2)
+            {
+                if (words[i] == 0 && words[i + 1] == 0)
+                    return HidPPDecode.ParseDpiWords(words.ToArray());
+            }
+        }
+        return null;
     }
 
     /// <summary>
-    /// Sets the DPI for a sensor via ADJUSTABLE_DPI (0x2201), function 0x20.
+    /// Reads the current DPI. 0x2201 fn 0x20 getSensorDpi: [sensor, dpi(2), default(2)].
+    /// 0x2202 fn 0x50 getSensorDpiParameters: [sensor, x(2), defaultX(2), y(2), defaultY(2), lod].
+    /// </summary>
+    public static int? GetDPI(HidPPDevice device, byte sensor = 0)
+    {
+        if (device.GetFeatureIndex(Feature.ADJUSTABLE_DPI) >= 0)
+        {
+            byte[]? reply = device.FeatureRequest(Feature.ADJUSTABLE_DPI, 0x20, sensor);
+            if (reply is null || reply.Length < 5)
+                return null;
+            return (reply[3] << 8) | reply[4];
+        }
+
+        if (device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_DPI) < 0)
+            return null;
+
+        byte[]? ext = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_DPI, 0x50, sensor);
+        if (ext is null || ext.Length < 12 || ext[2] != sensor)
+            return null;
+        int x = (ext[3] << 8) | ext[4];
+        return x != 0 ? x : (ext[5] << 8) | ext[6];
+    }
+
+    /// <summary>
+    /// Sets the DPI. 0x2201 fn 0x30 setSensorDpi [sensor, dpi(2)].
+    /// 0x2202 fn 0x60 setSensorDpiParameters [sensor, x(2), y(2) or 0, lod or 0];
+    /// Y and LOD only when the sensor capabilities (fn 0x10) report them, LOD kept as read.
     /// </summary>
     public static bool SetDPI(HidPPDevice device, int dpi, byte sensor = 0)
     {
-        if (device.GetFeatureIndex(Feature.ADJUSTABLE_DPI) < 0)
-            return false;
+        byte hi = (byte)(dpi >> 8), lo = (byte)(dpi & 0xFF);
 
-        byte[]? reply = device.FeatureRequest(Feature.ADJUSTABLE_DPI, 0x20,
-            sensor,
-            (byte)(dpi >> 8),
-            (byte)(dpi & 0xFF));
+        if (device.GetFeatureIndex(Feature.ADJUSTABLE_DPI) >= 0)
+            return device.FeatureRequest(Feature.ADJUSTABLE_DPI, 0x30, sensor, hi, lo) is not null;
 
-        return reply is not null;
-    }
-
-    /// <summary>
-    /// Reads the DPI for a sensor via EXTENDED_ADJUSTABLE_DPI (0x2202), function 0x10.
-    /// Supports separate X/Y DPI.
-    /// </summary>
-    public static (int currentX, int currentY, int max, int step)? GetExtendedDPI(
-        HidPPDevice device, byte sensor = 0)
-    {
-        if (device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_DPI) < 0)
-            return null;
-
-        byte[]? reply = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_DPI, 0x10, sensor);
-        if (reply is null || reply.Length < 11)
-            return null;
-
-        // [subId, addr, sensor, dpiX_hi, dpiX_lo, dpiY_hi, dpiY_lo,
-        //  defaultDpi_hi, defaultDpi_lo, maxOrStep_hi, maxOrStep_lo, ...]
-        int dpiX = (reply[3] << 8) | reply[4];
-        int dpiY = (reply[5] << 8) | reply[6];
-        int maxOrStep = (reply[9] << 8) | reply[10];
-
-        int maxDpi, step;
-        if (maxOrStep > 0xE000)
-        {
-            step = maxOrStep & 0x1FFF;
-            maxDpi = (reply[7] << 8) | reply[8];
-        }
-        else
-        {
-            step = 0;
-            maxDpi = maxOrStep;
-        }
-
-        return (dpiX, dpiY, maxDpi, step);
-    }
-
-    /// <summary>
-    /// Sets separate X/Y DPI via EXTENDED_ADJUSTABLE_DPI (0x2202), function 0x20.
-    /// </summary>
-    public static bool SetExtendedDPI(HidPPDevice device, int dpiX, int dpiY, byte sensor = 0)
-    {
         if (device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_DPI) < 0)
             return false;
 
-        byte[]? reply = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_DPI, 0x20,
-            sensor,
-            (byte)(dpiX >> 8), (byte)(dpiX & 0xFF),
-            (byte)(dpiY >> 8), (byte)(dpiY & 0xFF));
+        byte[]? caps = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_DPI, 0x10, sensor);
+        if (caps is null || caps.Length < 5 || caps[2] != sensor)
+            return false;
+        bool hasY = (caps[4] & 0x01) != 0;
+        byte lod = 0;
+        if ((caps[4] & 0x02) != 0)
+        {
+            byte[]? cur = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_DPI, 0x50, sensor);
+            if (cur is null || cur.Length < 12 || cur[2] != sensor)
+                return false;
+            lod = cur[11];
+        }
 
-        return reply is not null;
+        return device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_DPI, 0x60, sensor,
+            hi, lo, hasY ? hi : (byte)0, hasY ? lo : (byte)0, lod) is not null;
     }
 
     /// <summary>
@@ -389,15 +345,9 @@ public static class HidPPProtocol
     }
 
     /// <summary>
-    /// Extended report rate index to microseconds mapping for EXTENDED_ADJUSTABLE_REPORT_RATE (0x8061).
-    /// Bitmask: bit0=8ms, bit1=4ms, bit2=2ms, bit3=1ms, bit4=500us, bit5=250us, bit6=125us.
-    /// </summary>
-    private static readonly int[] ExtendedRateIndexToUs =
-        [8000, 4000, 2000, 1000, 500, 250, 125];
-
-    /// <summary>
-    /// Reads extended polling rate via EXTENDED_ADJUSTABLE_REPORT_RATE (0x8061).
-    /// Function 0x10 = GetReportRateList (2-byte bitmask), function 0x20 = GetReportRate.
+    /// Reads the rate via EXTENDED_ADJUSTABLE_REPORT_RATE (0x8061). fn 0x10 getActualReportRateList:
+    /// payload[1] bit N = rate index N (0=125Hz .. 6=8000Hz). fn 0x20 getReportRate [connection]:
+    /// payload[0] = index; connection 0 = wired (direct index 0xFF), 1 = gaming wireless.
     /// </summary>
     public static (int currentIndex, int[] supportedIndices)? GetExtendedPollingRate(HidPPDevice device)
     {
@@ -408,20 +358,19 @@ public static class HidPPProtocol
         if (listReply is null || listReply.Length < 4)
             return null;
 
-        ushort rateBits = (ushort)((listReply[2] << 8) | listReply[3]);
         var supported = new List<int>();
-        for (int i = 0; i < ExtendedRateIndexToUs.Length; i++)
+        for (int i = 0; i < 7; i++)
         {
-            if ((rateBits & (1 << i)) != 0)
+            if ((listReply[3] & (1 << i)) != 0)
                 supported.Add(i);
         }
 
-        byte[]? curReply = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_REPORT_RATE, 0x20);
-        if (curReply is null || curReply.Length < 3)
+        byte connection = (byte)(device.DeviceIndex == 0xFF ? 0x00 : 0x01);
+        byte[]? curReply = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_REPORT_RATE, 0x20, connection);
+        if (curReply is null || curReply.Length < 3 || curReply[2] > 6)
             return null;
 
-        int currentIndex = curReply[2];
-        return (currentIndex, supported.ToArray());
+        return (curReply[2], supported.ToArray());
     }
 
     /// <summary>
@@ -429,7 +378,7 @@ public static class HidPPProtocol
     /// </summary>
     public static bool SetExtendedPollingRate(HidPPDevice device, byte rateIndex)
     {
-        if (device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_REPORT_RATE) < 0)
+        if (device.GetFeatureIndex(Feature.EXTENDED_ADJUSTABLE_REPORT_RATE) < 0 || rateIndex > 6)
             return false;
 
         byte[]? reply = device.FeatureRequest(Feature.EXTENDED_ADJUSTABLE_REPORT_RATE, 0x30, rateIndex);
@@ -499,7 +448,12 @@ public static class HidPPProtocol
         if (device.GetFeatureIndex(Feature.HIRES_WHEEL) < 0)
             return false;
 
-        byte mode = 0;
+        // Read-modify-write: bits 3-7 and bytes 1-2 are not ours and go back as read.
+        byte[]? cur = device.FeatureRequest(Feature.HIRES_WHEEL, 0x10);
+        if (cur is null || cur.Length < 5)
+            return false;
+
+        byte mode = (byte)(cur[2] & ~0x07);
         if (divert)
             mode |= 0x01;
         if (hiRes)
@@ -507,66 +461,118 @@ public static class HidPPProtocol
         if (invert)
             mode |= 0x04;
 
-        byte[]? reply = device.FeatureRequest(Feature.HIRES_WHEEL, 0x20, mode);
+        byte[]? reply = device.FeatureRequest(Feature.HIRES_WHEEL, 0x20, mode, cur[3], cur[4]);
         return reply is not null;
     }
 
     /// <summary>
-    /// Gets the number of RGB zones via RGB_EFFECTS (0x8071), function 0x00.
+    /// Gets the number of RGB zones. RGB_EFFECTS (0x8071) fn 0x00 [0xFF, 0xFF, 0]: payload[2].
+    /// COLOR_LED_EFFECTS (0x8070) fn 0x00 getInfo: payload[0].
     /// </summary>
-    public static int GetRGBZoneCount(HidPPDevice device)
+    public static int GetRGBZoneCount(HidPPDevice device, ushort feature)
     {
-        if (device.GetFeatureIndex(Feature.RGB_EFFECTS) < 0)
+        if (device.GetFeatureIndex(feature) < 0)
             return 0;
 
-        // Args [0xFF, 0xFF, 0x00] to query general info.
-        byte[]? reply = device.FeatureRequest(Feature.RGB_EFFECTS, 0x00, 0xFF, 0xFF, 0x00);
+        if (feature == Feature.COLOR_LED_EFFECTS)
+        {
+            byte[]? info = device.FeatureRequest(feature, 0x00);
+            return info is null || info.Length < 3 ? 0 : info[2];
+        }
+
+        byte[]? reply = device.FeatureRequest(feature, 0x00, 0xFF, 0xFF, 0x00);
         if (reply is null || reply.Length < 5)
             return 0;
-
-        // Response: [subId, addr, ?, ?, zoneCount, ...]
         return reply[4];
     }
 
     /// <summary>
-    /// Gets the current RGB effect for a zone via RGB_EFFECTS (0x8071), function 0x30.
+    /// Lists the effect IDs a zone offers, by effect index. 0xFFFF = unreadable.
+    /// 0x8071 fn 0x00 [zone, 0xFF, 0]: payload [zone, ?, location(2), count]; [zone, i, 0]: [zone, i, id(2)].
+    /// 0x8070 fn 0x10 [zone]: payload [zone, location(2), count]; fn 0x20 [zone, i]: [zone, i, id(2)].
     /// </summary>
-    /// <returns>Tuple of (R, G, B, effectId) or null.</returns>
-    public static (byte r, byte g, byte b, byte effect)? GetRGBZoneEffect(HidPPDevice device, byte zone)
+    public static ushort[] GetRGBZoneEffectIds(HidPPDevice device, ushort feature, byte zone)
     {
-        if (device.GetFeatureIndex(Feature.RGB_EFFECTS) < 0)
-            return null;
+        if (device.GetFeatureIndex(feature) < 0)
+            return [];
 
-        byte[]? reply = device.FeatureRequest(Feature.RGB_EFFECTS, 0x30, zone);
-        if (reply is null || reply.Length < 7)
-            return null;
+        bool led = feature == Feature.COLOR_LED_EFFECTS;
+        byte[]? info = led
+            ? device.FeatureRequest(feature, 0x10, zone)
+            : device.FeatureRequest(feature, 0x00, zone, 0xFF, 0x00);
+        if (info is null || info.Length < 7 || info[2] != zone)
+            return [];
 
-        byte effectId = reply[4];
-        byte r = reply.Length > 5 ? reply[5] : (byte)0;
-        byte g = reply.Length > 6 ? reply[6] : (byte)0;
-        byte b = reply.Length > 7 ? reply[7] : (byte)0;
-
-        return (r, g, b, effectId);
+        var ids = new ushort[led ? info[5] : info[6]];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            byte[]? e = led
+                ? device.FeatureRequest(feature, 0x20, zone, (byte)i)
+                : device.FeatureRequest(feature, 0x00, zone, (byte)i, 0x00);
+            ids[i] = e is not null && e.Length >= 6 && e[2] == zone && e[3] == i
+                ? (ushort)((e[4] << 8) | e[5])
+                : (ushort)0xFFFF;
+        }
+        return ids;
     }
 
     /// <summary>
-    /// Sets the RGB effect for a zone via RGB_EFFECTS (0x8071), function 0x40.
-    /// Effects: 0x00=off, 0x01=static, 0x02=pulse/breathing, 0x03=cycle, 0x04=wave.
+    /// Reads a zone's active effect via COLOR_LED_EFFECTS (0x8070) fn 0xE0 getZoneEffect [zone, RAM]:
+    /// payload [zone, effectIndex, params(10)]. Only when getInfo ext caps (payload[3..4]) bit 0 is set.
     /// </summary>
-    public static bool SetRGBZoneEffect(HidPPDevice device, byte zone, byte effect,
-        byte r, byte g, byte b, byte speed = 0)
+    public static (byte index, byte[] effectParams)? GetRGBZoneEffect(HidPPDevice device, byte zone)
     {
-        if (device.GetFeatureIndex(Feature.RGB_EFFECTS) < 0)
+        if (device.GetFeatureIndex(Feature.COLOR_LED_EFFECTS) < 0)
+            return null;
+
+        byte[]? info = device.FeatureRequest(Feature.COLOR_LED_EFFECTS, 0x00);
+        if (info is null || info.Length < 7 || (info[6] & 0x01) == 0)
+            return null;
+
+        byte[]? r = device.FeatureRequest(Feature.COLOR_LED_EFFECTS, 0xE0, zone, 0x00);
+        if (r is null || r.Length < 14 || r[2] != zone)
+            return null;
+        return (r[3], r[4..14]);
+    }
+
+    /// <summary>
+    /// Takes software control of all RGB clusters via RGB_EFFECTS (0x8071) fn 0x50 manageSwControl,
+    /// keeping the other control and event flags. Returns the flags read before the claim.
+    /// </summary>
+    public static (byte control, byte events)? ClaimRGBControl(HidPPDevice device)
+    {
+        byte[]? cur = device.FeatureRequest(Feature.RGB_EFFECTS, 0x50, 0x00, 0x00, 0x00);
+        if (cur is null || cur.Length < 5)
+            return null;
+        byte control = cur[3], events = cur[4];
+        if (device.FeatureRequest(Feature.RGB_EFFECTS, 0x50, 0x01, (byte)(control | 0x01), events) is null)
+            return null;
+        return (control, events);
+    }
+
+    /// <summary>Returns cluster control to the firmware, restoring the flags read before the claim.</summary>
+    public static void ReleaseRGBControl(HidPPDevice device, byte control, byte events)
+    {
+        device.FeatureRequest(Feature.RGB_EFFECTS, 0x50, 0x01, (byte)(control & ~0x01), events);
+    }
+
+    /// <summary>
+    /// Applies an effect to a zone, volatile: [zone, effectIndex, params(10), persistence].
+    /// 0x8071 fn 0x10 setRgbClusterEffect (persistence 0x01 = RAM, full power; needs software control).
+    /// 0x8070 fn 0x30 setZoneEffect (persistence 0x00 = RAM).
+    /// </summary>
+    public static bool SetRGBZoneEffect(HidPPDevice device, ushort feature, byte zone, byte effectIndex, byte[] effectParams)
+    {
+        if (device.GetFeatureIndex(feature) < 0 || effectParams.Length != 10)
             return false;
 
-        ushort period = (ushort)(speed * 100);
-
-        byte[]? reply = device.FeatureRequest(Feature.RGB_EFFECTS, 0x40,
-            zone, effect, r, g, b,
-            (byte)(period >> 8), (byte)(period & 0xFF),
-            0x00, 0x00, 0x00, 0x00);
-
-        return reply is not null;
+        bool led = feature == Feature.COLOR_LED_EFFECTS;
+        var args = new byte[13];
+        args[0] = zone;
+        args[1] = effectIndex;
+        effectParams.CopyTo(args, 2);
+        args[12] = (byte)(led ? 0x00 : 0x01);
+        return device.FeatureRequest(feature, (byte)(led ? 0x30 : 0x10), args) is not null;
     }
 
     /// <summary>
@@ -579,7 +585,7 @@ public static class HidPPProtocol
             return null;
 
         byte[]? reply = device.FeatureRequest(Feature.BACKLIGHT2, 0x00);
-        if (reply is null || reply.Length < 7)
+        if (reply is null || reply.Length < 8)
             return null;
 
         // [subId, addr, enabled, options, supported, effectsHi, effectsLo, level, ...]
@@ -598,11 +604,11 @@ public static class HidPPProtocol
         if (current is null || current.Length < 14)
             return false;
 
-        // SetBacklightConfig: [enabled, options, 0xFF, level, dho_hi, dho_lo, dhi_hi, dhi_lo, dpow_hi, dpow_lo]
+        // SetBacklightConfig: [enabled, options, 0xFF, level, dho, dhi, dpow] (durations u16 LE)
         byte enabled = current[2];
         byte options = current[3];
-        // Force manual mode (mode=3 in bits 3-4) to allow direct level control.
-        options = (byte)((options & 0x07) | (0x03 << 3));
+        // Force manual mode (mode=3 in bits 3-4) to allow direct level control; keep other bits.
+        options = (byte)((options & ~0x18) | (0x03 << 3));
 
         byte[]? reply = device.FeatureRequest(Feature.BACKLIGHT2, 0x10,
             enabled, options, 0xFF, (byte)level,
@@ -614,35 +620,77 @@ public static class HidPPProtocol
     }
 
     /// <summary>
-    /// Gets the active onboard profile index via ONBOARD_PROFILES (0x8100), function 0x20.
+    /// Reads BACKLIGHT2 (0x1982) durations in seconds: hands-out, hands-in, powered.
+    /// getBacklightConfig payload [6..11], u16 LE in 5 s units.
+    /// </summary>
+    public static (int handsOut, int handsIn, int powered)? GetBacklightDelays(HidPPDevice device)
+    {
+        if (device.GetFeatureIndex(Feature.BACKLIGHT2) < 0)
+            return null;
+
+        byte[]? cur = device.FeatureRequest(Feature.BACKLIGHT2, 0x00);
+        if (cur is null || cur.Length < 14)
+            return null;
+
+        return ((cur[8] | (cur[9] << 8)) * 5, (cur[10] | (cur[11] << 8)) * 5, (cur[12] | (cur[13] << 8)) * 5);
+    }
+
+    /// <summary>
+    /// Writes BACKLIGHT2 (0x1982) durations in seconds, keeping enabled, options and level as read.
+    /// Level is sent only in manual mode (3), as the feature ignores it otherwise.
+    /// </summary>
+    public static bool SetBacklightDelays(HidPPDevice device, int handsOut, int handsIn, int powered)
+    {
+        if (device.GetFeatureIndex(Feature.BACKLIGHT2) < 0)
+            return false;
+
+        byte[]? cur = device.FeatureRequest(Feature.BACKLIGHT2, 0x00);
+        if (cur is null || cur.Length < 14)
+            return false;
+
+        ushort dho = HidPPDecode.BacklightSecondsToWire(handsOut);
+        ushort dhi = HidPPDecode.BacklightSecondsToWire(handsIn);
+        ushort dpow = HidPPDecode.BacklightSecondsToWire(powered);
+        byte level = ((cur[3] >> 3) & 0x03) == 0x03 ? cur[7] : (byte)0;
+
+        return device.FeatureRequest(Feature.BACKLIGHT2, 0x10,
+            cur[2], cur[3], 0xFF, level,
+            (byte)dho, (byte)(dho >> 8),
+            (byte)dhi, (byte)(dhi >> 8),
+            (byte)dpow, (byte)(dpow >> 8)) is not null;
+    }
+
+    /// <summary>
+    /// Gets the active onboard profile via ONBOARD_PROFILES (0x8100) fn 0x40 getCurrentProfile:
+    /// payload [profile(2)] BE.
     /// </summary>
     public static int? GetActiveProfile(HidPPDevice device)
     {
         if (device.GetFeatureIndex(Feature.ONBOARD_PROFILES) < 0)
             return null;
 
-        byte[]? reply = device.FeatureRequest(Feature.ONBOARD_PROFILES, 0x20);
-        if (reply is null || reply.Length < 3)
+        byte[]? reply = device.FeatureRequest(Feature.ONBOARD_PROFILES, 0x40);
+        if (reply is null || reply.Length < 4)
             return null;
 
-        return reply[2];
+        return (reply[2] << 8) | reply[3];
     }
 
     /// <summary>
-    /// Sets the active onboard profile via ONBOARD_PROFILES (0x8100), function 0x10.
+    /// Sets the active onboard profile via ONBOARD_PROFILES (0x8100) fn 0x30 setCurrentProfile [profile(2)].
     /// </summary>
     public static bool SetActiveProfile(HidPPDevice device, int profile)
     {
         if (device.GetFeatureIndex(Feature.ONBOARD_PROFILES) < 0)
             return false;
 
-        byte[]? reply = device.FeatureRequest(Feature.ONBOARD_PROFILES, 0x10, (byte)profile);
+        byte[]? reply = device.FeatureRequest(Feature.ONBOARD_PROFILES, 0x30, (byte)(profile >> 8), (byte)profile);
         return reply is not null;
     }
 
     /// <summary>
     /// Reads the onboard mode via ONBOARD_PROFILES (0x8100), function 0x20.
-    /// Returns true for onboard mode (0x02), false for host mode (0x01).
+    /// Returns true for onboard mode (0x01), false for host mode (0x02).
     /// </summary>
     public static bool? GetOnboardMode(HidPPDevice device)
     {
@@ -653,53 +701,86 @@ public static class HidPPProtocol
         if (reply is null || reply.Length < 3)
             return null;
 
-        return reply[2] == 0x02;
+        return reply[2] == 0x01;
     }
 
     /// <summary>
     /// Sets the onboard mode via ONBOARD_PROFILES (0x8100), function 0x10.
-    /// When onboard=true, the device uses stored profiles (0x02).
-    /// When onboard=false, the device is controlled by host software (0x01).
+    /// When onboard=true, the device uses stored profiles (0x01).
+    /// When onboard=false, the device is controlled by host software (0x02).
     /// </summary>
     public static bool SetOnboardMode(HidPPDevice device, bool onboard)
     {
         if (device.GetFeatureIndex(Feature.ONBOARD_PROFILES) < 0)
             return false;
 
-        byte mode = (byte)(onboard ? 0x02 : 0x01);
+        byte mode = (byte)(onboard ? 0x01 : 0x02);
         byte[]? reply = device.FeatureRequest(Feature.ONBOARD_PROFILES, 0x10, mode);
         return reply is not null;
     }
 
     /// <summary>
-    /// Reads LED brightness via BRIGHTNESS_CONTROL (0x8040), function 0x10.
-    /// Returns brightness as 0-100.
+    /// BRIGHTNESS_CONTROL (0x8040) fn 0x00 getInfo: payload [max(2), steps, caps, min(2)].
+    /// Caps bit 2 = illumination on/off via fn 0x30 get / fn 0x40 set.
+    /// </summary>
+    private static (int min, int max, bool onOff)? GetBrightnessInfo(HidPPDevice device)
+    {
+        byte[]? info = device.FeatureRequest(Feature.BRIGHTNESS_CONTROL, 0x00);
+        if (info is null || info.Length < 8)
+            return null;
+        int max = (info[2] << 8) | info[3];
+        int min = (info[6] << 8) | info[7];
+        return max > min ? (min, max, (info[5] & 0x04) != 0) : null;
+    }
+
+    /// <summary>
+    /// Reads LED brightness via BRIGHTNESS_CONTROL (0x8040) fn 0x10 as 0-100 of the device range.
     /// </summary>
     public static int? GetBrightnessControl(HidPPDevice device)
     {
         if (device.GetFeatureIndex(Feature.BRIGHTNESS_CONTROL) < 0)
             return null;
 
+        var info = GetBrightnessInfo(device);
+        if (info is null)
+            return null;
+        if (info.Value.onOff)
+        {
+            byte[]? on = device.FeatureRequest(Feature.BRIGHTNESS_CONTROL, 0x30);
+            if (on is not null && on.Length >= 3 && (on[2] & 0x01) == 0)
+                return 0;
+        }
+
         byte[]? reply = device.FeatureRequest(Feature.BRIGHTNESS_CONTROL, 0x10);
         if (reply is null || reply.Length < 4)
             return null;
 
-        int brightness = (reply[2] << 8) | reply[3];
-        return Math.Clamp(brightness, 0, 100);
+        return HidPPDecode.ScaleToPercent((reply[2] << 8) | reply[3], info.Value.min, info.Value.max);
     }
 
     /// <summary>
-    /// Sets LED brightness via BRIGHTNESS_CONTROL (0x8040), function 0x20.
-    /// Level is 0-100.
+    /// Sets LED brightness via BRIGHTNESS_CONTROL (0x8040) fn 0x20, level 0-100 scaled to the device range.
+    /// On devices with illumination on/off, 0 switches it off and anything else switches it on.
     /// </summary>
     public static bool SetBrightnessControl(HidPPDevice device, int level)
     {
         if (device.GetFeatureIndex(Feature.BRIGHTNESS_CONTROL) < 0)
             return false;
 
-        level = Math.Clamp(level, 0, 100);
+        var info = GetBrightnessInfo(device);
+        if (info is null)
+            return false;
+        if (info.Value.onOff)
+        {
+            if (device.FeatureRequest(Feature.BRIGHTNESS_CONTROL, 0x40, (byte)(level > 0 ? 0x01 : 0x00)) is null)
+                return false;
+            if (level <= 0)
+                return true;
+        }
+
+        int raw = HidPPDecode.PercentToRange(level, info.Value.min, info.Value.max);
         byte[]? reply = device.FeatureRequest(Feature.BRIGHTNESS_CONTROL, 0x20,
-            (byte)(level >> 8), (byte)(level & 0xFF));
+            (byte)(raw >> 8), (byte)(raw & 0xFF));
         return reply is not null;
     }
 
@@ -968,6 +1049,97 @@ public static class HidPPProtocol
         device.FeatureRequest(Feature.CHANGE_HOST, 0x10, (byte)hostIndex);
     }
 
+    /// <summary>
+    /// 0x40A3 host byte: current host from HOSTS_INFO (0x1815) payload[3], as some firmware
+    /// ignores host 0xFF; 0xFF when HOSTS_INFO is missing.
+    /// </summary>
+    private static byte FnInversionHost(HidPPDevice device)
+    {
+        byte[]? hosts = device.GetFeatureIndex(Feature.HOSTS_INFO) >= 0
+            ? device.FeatureRequest(Feature.HOSTS_INFO, 0x00)
+            : null;
+        return hosts is not null && hosts.Length >= 6 ? hosts[5] : (byte)0xFF;
+    }
+
+    /// <summary>
+    /// Reads Fn inversion. 0x40A3 fn 0x00 [host]: payload [host, state, default, caps].
+    /// 0x40A2 fn 0x00: payload [state, default]. 0x40A0 fn 0x00: payload[0] low nibble.
+    /// </summary>
+    public static bool? GetFnInversion(HidPPDevice device)
+    {
+        if (device.GetFeatureIndex(Feature.K375S_FN_INVERSION) >= 0)
+        {
+            byte[]? r = device.FeatureRequest(Feature.K375S_FN_INVERSION, 0x00, FnInversionHost(device));
+            return r is null || r.Length < 4 ? null : r[3] == 0x01;
+        }
+        if (device.GetFeatureIndex(Feature.NEW_FN_INVERSION) >= 0)
+        {
+            byte[]? r = device.FeatureRequest(Feature.NEW_FN_INVERSION, 0x00);
+            return r is null || r.Length < 3 ? null : r[2] == 0x01;
+        }
+        if (device.GetFeatureIndex(Feature.FN_INVERSION) >= 0)
+        {
+            byte[]? r = device.FeatureRequest(Feature.FN_INVERSION, 0x00);
+            return r is null || r.Length < 3 ? null : (r[2] & 0x0F) == 0x01;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Writes Fn inversion via fn 0x10. 0x40A3 takes [host, state].
+    /// </summary>
+    public static bool SetFnInversion(HidPPDevice device, bool inverted)
+    {
+        byte state = (byte)(inverted ? 0x01 : 0x00);
+        if (device.GetFeatureIndex(Feature.K375S_FN_INVERSION) >= 0)
+            return device.FeatureRequest(Feature.K375S_FN_INVERSION, 0x10, FnInversionHost(device), state) is not null;
+        ushort feat = device.GetFeatureIndex(Feature.NEW_FN_INVERSION) >= 0 ? Feature.NEW_FN_INVERSION : Feature.FN_INVERSION;
+        if (device.GetFeatureIndex(feat) < 0)
+            return false;
+        return device.FeatureRequest(feat, 0x10, state) is not null;
+    }
+
+    /// <summary>
+    /// Reads the OS platform and platform count. MULTIPLATFORM (0x4531) fn 0x00 getFeatureInfos:
+    /// payload [caps(2), platformCount, descriptorCount, hostCount, currentHost, currentPlatform];
+    /// null when caps lacks set-host-platform (0x0200). DUALPLATFORM (0x4530) fn 0x00: payload[0], 2 platforms.
+    /// </summary>
+    public static (int platform, int count)? GetOsPlatform(HidPPDevice device)
+    {
+        if (device.GetFeatureIndex(Feature.MULTIPLATFORM) >= 0)
+        {
+            byte[]? r = device.FeatureRequest(Feature.MULTIPLATFORM, 0x00);
+            if (r is null || r.Length < 9 || (r[2] & 0x02) == 0)
+                return null;
+            return (r[8], r[4]);
+        }
+        if (device.GetFeatureIndex(Feature.DUALPLATFORM) >= 0)
+        {
+            byte[]? r = device.FeatureRequest(Feature.DUALPLATFORM, 0x00);
+            return r is null || r.Length < 3 ? null : (r[2], 2);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Writes the OS platform. 0x4531 fn 0x30 setHostPlatform [host, platform] with the current
+    /// host slot from getFeatureInfos (0xFF if out of range). 0x4530 fn 0x20 setPlatform [platform].
+    /// </summary>
+    public static bool SetOsPlatform(HidPPDevice device, int platform)
+    {
+        if (device.GetFeatureIndex(Feature.MULTIPLATFORM) >= 0)
+        {
+            byte[]? r = device.FeatureRequest(Feature.MULTIPLATFORM, 0x00);
+            if (r is null || r.Length < 9 || (r[2] & 0x02) == 0 || platform >= r[4])
+                return false;
+            byte host = r[7] < r[6] ? r[7] : (byte)0xFF;
+            return device.FeatureRequest(Feature.MULTIPLATFORM, 0x30, host, (byte)platform) is not null;
+        }
+        if (device.GetFeatureIndex(Feature.DUALPLATFORM) >= 0)
+            return device.FeatureRequest(Feature.DUALPLATFORM, 0x20, (byte)platform) is not null;
+        return false;
+    }
+
     // -- REPROG_CONTROLS_V4 (0x1B04) button enumeration --
 
     private static readonly Dictionary<ushort, string> CidNames = new()
@@ -1059,6 +1231,7 @@ public static class HidPPProtocol
         [42] = "Scroll 2F Horizontal",
         [43] = "Scroll 2F Vertical",
         [45] = "Natural Scrolling",
+        [46] = "Thumb Wheel",
         [48] = "V-Scroll Inertia",
         [49] = "V-Scroll Ballistics",
         [50] = "Swipe 2F Horizontal",
@@ -1238,21 +1411,23 @@ public static class HidPPProtocol
 
     private static readonly Dictionary<byte, string> GestureParamNames = new()
     {
-        [0x01] = "Scale Factor",
-        [0x02] = "MixedButtons",
+        [0x01] = "Extra Capabilities",
+        [0x02] = "Pixel Zone",
+        [0x03] = "Ratio Zone",
+        [0x04] = "Scale Factor",
     };
 
     /// <summary>
     /// Enumerates gesture params via fn 0x00 walk (param fields have high byte 0x20-0x3F),
     /// reads current value via fn 0x70 and default/max via fn 0x60.
-    /// Returns (paramIndex, name, currentValue, maxValue).
+    /// Returns (paramIndex, name, currentValue, maxValue, size in bytes).
     /// </summary>
-    public static List<(int index, string name, int currentValue, int maxValue)> GetGestureParams(HidPPDevice device)
+    public static List<(int index, string name, int currentValue, int maxValue, int size)> GetGestureParams(HidPPDevice device)
     {
         if (device.GetFeatureIndex(Feature.GESTURE_2) < 0)
             return [];
 
-        var result = new List<(int, string, int, int)>();
+        var result = new List<(int, string, int, int, int)>();
         int fieldIndex = 0;
         int nextParamIndex = 0;
 
@@ -1305,7 +1480,7 @@ public static class HidPPProtocol
                         max = 1024;
 
                     string name = GestureParamNames.GetValueOrDefault(low, $"Param {low}");
-                    result.Add((paramIndex, name, current, max));
+                    result.Add((paramIndex, name, current, max, size));
                 }
 
                 fieldIndex++;
@@ -1319,15 +1494,19 @@ public static class HidPPProtocol
     }
 
     /// <summary>
-    /// Sets a gesture param value via fn 0x80. Encoded as big-endian 2-byte int.
+    /// Sets a gesture param value via fn 0x80: [index, value (size bytes, BE), 0xFF].
     /// </summary>
-    public static bool SetGestureParam(HidPPDevice device, int paramIndex, int value)
+    public static bool SetGestureParam(HidPPDevice device, int paramIndex, int value, int size)
     {
-        if (device.GetFeatureIndex(Feature.GESTURE_2) < 0)
+        if (device.GetFeatureIndex(Feature.GESTURE_2) < 0 || size is < 1 or > 4)
             return false;
 
-        byte[]? reply = device.FeatureRequest(Feature.GESTURE_2, 0x80,
-            (byte)paramIndex, (byte)(value >> 8), (byte)(value & 0xFF), 0xFF);
+        var args = new byte[size + 2];
+        args[0] = (byte)paramIndex;
+        for (int b = 0; b < size; b++)
+            args[1 + b] = (byte)(value >> (8 * (size - 1 - b)));
+        args[^1] = 0xFF;
+        byte[]? reply = device.FeatureRequest(Feature.GESTURE_2, 0x80, args);
         return reply is not null;
     }
 
@@ -1348,16 +1527,43 @@ public static class HidPPProtocol
         return (enabled, level);
     }
 
-    /// <summary>Sets haptic feedback. fn 0x20: [enabled, level].</summary>
+    /// <summary>Sets haptic feedback. fn 0x20: [flags, level]; flag bits other than enable are kept as read.</summary>
     public static bool SetHapticLevel(HidPPDevice device, bool enabled, int level)
     {
         if (device.GetFeatureIndex(Feature.HAPTIC) < 0)
             return false;
 
-        byte en = (byte)(enabled ? 0x01 : 0x00);
-        byte lv = (byte)Math.Clamp(enabled ? level : 50, 0, 100);
-        byte[]? reply = device.FeatureRequest(Feature.HAPTIC, 0x20, en, lv);
+        byte[]? cur = device.FeatureRequest(Feature.HAPTIC, 0x10);
+        if (cur is null || cur.Length < 4)
+            return false;
+
+        byte flags = (byte)(enabled ? cur[2] | 0x01 : cur[2] & ~0x01);
+        byte lv = (byte)Math.Clamp(enabled ? level : cur[3], 0, 100);
+        byte[]? reply = device.FeatureRequest(Feature.HAPTIC, 0x20, flags, lv);
         return reply is not null;
+    }
+
+    /// <summary>
+    /// Plays a haptic waveform via fn 0x40, only if capabilities (fn 0x00, payload[4..7] BE mask,
+    /// bit N = waveform N) advertise it and the status (fn 0x30, payload[0]) is 0.
+    /// </summary>
+    public static bool PlayHapticWaveform(HidPPDevice device, byte waveform)
+    {
+        if (device.GetFeatureIndex(Feature.HAPTIC) < 0 || waveform > 31)
+            return false;
+
+        byte[]? caps = device.FeatureRequest(Feature.HAPTIC, 0x00);
+        if (caps is null || caps.Length < 10)
+            return false;
+        uint mask = (uint)((caps[6] << 24) | (caps[7] << 16) | (caps[8] << 8) | caps[9]);
+        if ((mask & (1u << waveform)) == 0)
+            return false;
+
+        byte[]? status = device.FeatureRequest(Feature.HAPTIC, 0x30);
+        if (status is null || status.Length < 3 || status[2] != 0)
+            return false;
+
+        return device.FeatureRequest(Feature.HAPTIC, 0x40, waveform) is not null;
     }
 
     // ── FORCE_SENSING_BUTTON (0x19C0) ──
@@ -1376,16 +1582,17 @@ public static class HidPPProtocol
         int count = countReply[2];
         for (byte i = 0; i < count && i < 8; i++)
         {
+            // getButtonInfo payload [flags(2), default(2), max(2), min(2)]; getButtonConfig payload [current(2)].
             byte[]? info = device.FeatureRequest(Feature.FORCE_SENSING_BUTTON, 0x10, i);
-            if (info is null || info.Length < 8)
+            if (info is null || info.Length < 10)
                 continue;
 
-            int minForce = (info[4] << 8) | info[5];
             int maxForce = (info[6] << 8) | info[7];
+            int minForce = (info[8] << 8) | info[9];
 
             byte[]? cur = device.FeatureRequest(Feature.FORCE_SENSING_BUTTON, 0x20, i);
-            int current = (cur is not null && cur.Length >= 5)
-                ? (cur[3] << 8) | cur[4]
+            int current = (cur is not null && cur.Length >= 4)
+                ? (cur[2] << 8) | cur[3]
                 : minForce;
 
             result.Add((i, current, minForce, maxForce));

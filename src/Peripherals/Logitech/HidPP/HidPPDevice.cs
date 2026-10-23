@@ -64,6 +64,7 @@ public sealed class HidPPDevice : IDisposable
     public float ProtocolVersion { get; private set; }
 
     private readonly Dictionary<ushort, byte> _featureIndex = new();
+    private readonly Dictionary<ushort, byte> _featureVersion = new();
 
     /// <summary>Discovered feature-ID to feature-index mapping.</summary>
     public IReadOnlyDictionary<ushort, byte> Features => _featureIndex;
@@ -210,6 +211,9 @@ public sealed class HidPPDevice : IDisposable
                     // Match: sub-ID and address match the request bytes.
                     if (subId == reqByte0 && addr == reqByte1)
                     {
+                        // Receiver 0xB5 replies must also echo the sub-register.
+                        if (reqByte0 == 0x83 && reqByte1 == 0xB5 && data.Length > 2 && buf[4] != data[2])
+                            continue;
                         int respSize = (buf[0] == LONG_REPORT_ID)
                             ? LONG_MESSAGE_SIZE - 2
                             : SHORT_MESSAGE_SIZE - 2;
@@ -380,6 +384,7 @@ public sealed class HidPPDevice : IDisposable
     public void DiscoverFeatures()
     {
         _featureIndex.Clear();
+        _featureVersion.Clear();
         _featureIndex[Feature.ROOT] = 0;
 
         // Find the index of FEATURE_SET (0x0001) via ROOT.
@@ -409,10 +414,14 @@ public sealed class HidPPDevice : IDisposable
             if (entry is null || entry.Length < 4)
                 continue;
 
-            // Response: [subId, addr, featureIdHigh, featureIdLow, type, ...]
+            // Response: [subId, addr, featureIdHigh, featureIdLow, type, version, ...]
             ushort featureId = (ushort)((entry[2] << 8) | entry[3]);
             if (featureId != 0x0000)
+            {
                 _featureIndex[featureId] = i;
+                if (entry.Length >= 6)
+                    _featureVersion[featureId] = entry[5];
+            }
         }
 
         Logger.WriteLine($"HidPPDevice: discovered {_featureIndex.Count} features on {DevicePath}");
@@ -424,6 +433,12 @@ public sealed class HidPPDevice : IDisposable
     public int GetFeatureIndex(ushort featureId)
     {
         return _featureIndex.TryGetValue(featureId, out byte idx) ? idx : -1;
+    }
+
+    /// <summary>Feature version from FEATURE_SET discovery, or 0 when unknown.</summary>
+    public int GetFeatureVersion(ushort featureId)
+    {
+        return _featureVersion.TryGetValue(featureId, out byte v) ? v : 0;
     }
 
     /// <summary>
@@ -489,6 +504,19 @@ public sealed class HidPPDevice : IDisposable
             Buffer.BlockCopy(args, 0, data, 2, args.Length);
 
         return Request(data, longMessage: args.Length > 3);
+    }
+
+    /// <summary>
+    /// Reads a HID++ 1.0 long register (sub-ID 0x83) with up to 3 parameter bytes.
+    /// Returns [0x83, register, data...] or null.
+    /// </summary>
+    public byte[]? ReadLongRegister(byte register, params byte[] args)
+    {
+        var data = new byte[2 + Math.Min(args.Length, 3)];
+        data[0] = 0x83;
+        data[1] = register;
+        Array.Copy(args, 0, data, 2, data.Length - 2);
+        return Request(data);
     }
 
     /// <summary>

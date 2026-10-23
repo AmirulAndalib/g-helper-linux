@@ -18,9 +18,6 @@ public class MXMaster : LogitechMouse
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 50;
 
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
-
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
 }
@@ -53,9 +50,6 @@ public class MXMaster2S : LogitechMouse
     public override uint MaxDPI() => 4000;
     public override uint MinDPI() => 200;
     public override uint DPIIncrement() => 50;
-
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
 
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];

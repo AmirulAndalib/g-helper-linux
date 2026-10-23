@@ -74,13 +74,14 @@ public class LogitechReceiver : IDisposable
 
                 var (name, kind, wpid) = paired.Value;
 
-                if (kind != 3)
+                // Receiver pairing kind: 1 keyboard, 2 mouse, 8 trackball, 9 touchpad.
+                if (kind is not (1 or 2 or 8 or 9))
                 {
-                    Logger.WriteLine($"LogitechReceiver: skipping non-mouse device '{name}' (kind={kind})");
+                    Logger.WriteLine($"LogitechReceiver: skipping device '{name}' (kind={kind})");
                     continue;
                 }
 
-                Logger.WriteLine($"LogitechReceiver: found paired mouse '{name}' (wpid=0x{wpid:X4}) at index {devIdx}");
+                Logger.WriteLine($"LogitechReceiver: found paired device '{name}' (kind={kind}, wpid=0x{wpid:X4}) at index {devIdx}");
 
                 var mouse = new LogitechReceiverMouse(hidDevice, devIdx, name, wpid);
                 mice.Add(mouse);
@@ -95,62 +96,48 @@ public class LogitechReceiver : IDisposable
     }
 
     /// <summary>
-    /// Reads pairing information for a device index via HID++ 1.0 register 0xB5.
+    /// Reads pairing information for a device index (1-based) via HID++ 1.0 long register 0xB5.
+    /// Unifying-style receivers use sub 0x20+(n-1) and name 0x40+(n-1); Bolt uses 0x50+n and 0x60+n.
     /// </summary>
-    /// <returns>Tuple of (name, deviceKind, wirelessPID) or null if slot is empty.</returns>
+    /// <returns>Tuple of (name, receiver device kind, wirelessPID) or null if slot is empty.</returns>
     private (string name, int kind, ushort wpid)? GetPairedDevice(byte devIndex)
     {
         if (_device is null)
             return null;
 
-        byte pairingFunc = (byte)(0x20 + devIndex);
-
+        bool bolt = _info.Kind == ReceiverKind.Bolt;
         byte[]? pairingReply;
         try
         {
-            pairingReply = _device.ReadRegister(REG_PAIRING_INFO, pairingFunc);
+            pairingReply = _device.ReadLongRegister(REG_PAIRING_INFO, (byte)(bolt ? 0x50 + devIndex : 0x20 + devIndex - 1));
         }
         catch
         {
             return null;
         }
 
-        if (pairingReply is null || pairingReply.Length < 7)
+        // Reply [0x83, 0xB5, sub, data...]; decoders take it from the sub-register echo.
+        if (pairingReply is null || pairingReply.Length < 3)
+            return null;
+        var info = HidPPDecode.DecodePairingInfo(pairingReply.AsSpan(2), bolt);
+        if (info is null)
             return null;
 
-        ushort wpid = (ushort)((pairingReply[3] << 8) | pairingReply[4]);
-        if (wpid == 0)
-            return null;
-
-        int deviceKind = pairingReply[6] & 0x0F;
-
-        byte nameFunc = (byte)(0x40 + devIndex);
         string name = "Logitech Device";
-
-        byte[]? nameReply;
         try
         {
-            nameReply = _device.ReadRegister(REG_PAIRING_INFO, nameFunc);
+            byte[]? nameReply = bolt
+                ? _device.ReadLongRegister(REG_PAIRING_INFO, (byte)(0x60 + devIndex), 0x01)
+                : _device.ReadLongRegister(REG_PAIRING_INFO, (byte)(0x40 + devIndex - 1));
+            if (nameReply is not null && nameReply.Length > 2
+                && HidPPDecode.DecodeCodename(nameReply.AsSpan(2), bolt) is { } codename)
+                name = codename;
         }
         catch
         {
-            nameReply = null;
         }
 
-        if (nameReply is not null && nameReply.Length > 2)
-        {
-            int nameLen = 0;
-            for (int i = 2; i < nameReply.Length; i++)
-            {
-                if (nameReply[i] == 0)
-                    break;
-                nameLen++;
-            }
-            if (nameLen > 0)
-                name = System.Text.Encoding.ASCII.GetString(nameReply, 2, nameLen);
-        }
-
-        return (name, deviceKind, wpid);
+        return (name, info.Value.kind, info.Value.wpid);
     }
 
     /// <summary>Finds the HidSharp HidDevice for this receiver.</summary>
@@ -196,7 +183,8 @@ public class LogitechReceiverMouse : LogitechMouse
 {
     private readonly HidDevice _receiverHidDevice;
     private readonly byte _deviceIndex;
-    private readonly string _discoveredName;
+    private string _discoveredName;
+    private readonly bool _hasSpec;
 
     public LogitechReceiverMouse(HidDevice receiverHidDevice, byte deviceIndex, string name, ushort wpid)
         : base(wpid, "", wireless: true)
@@ -205,6 +193,7 @@ public class LogitechReceiverMouse : LogitechMouse
         _deviceIndex = deviceIndex;
         var spec = ReceiverPairedDevices.SpecFor(wpid);
         _discoveredName = spec?.Name ?? name;
+        _hasSpec = spec is not null;
         if (spec is not null)
         {
             _maxDpi = (int)spec.MaxDpi;
@@ -240,7 +229,12 @@ public class LogitechReceiverMouse : LogitechMouse
             }
 
             if (proto >= 2.0f)
+            {
                 _device.DiscoverFeatures();
+                // The receiver codename can be truncated; the device's own 0x0005 name is whole.
+                if (!_hasSpec && HidPPProtocol.GetDeviceName(_device) is { Length: > 0 } fullName)
+                    _discoveredName = fullName;
+            }
 
             DiscoverCapabilities();
 

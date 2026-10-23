@@ -13,9 +13,6 @@ public class M500S : LogitechMouse
     public override uint MinDPI() => 400;
     public override uint DPIIncrement() => 25;
 
-    public override PollingRate[] SupportedPollingrates() =>
-        [PollingRate.PR125Hz, PollingRate.PR250Hz, PollingRate.PR500Hz, PollingRate.PR1000Hz];
-
     public override LightingZone[] SupportedLightingZones() => [];
     public override LightingMode[] SupportedLightingModes() => [LightingMode.Off];
 }
